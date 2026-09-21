@@ -381,6 +381,18 @@ public class ApiServer
         api.MapPost("/git/cicd/setup-github-action", async (GithubActionSetupRequest req, IGitService svc) =>
             Results.Ok(await svc.SetupGithubActionAsync(req)));
 
+        api.MapGet("/git/gitignore", async (string repoPath, IGitService svc) =>
+            Results.Ok(await svc.GetGitIgnoreAsync(repoPath)));
+
+        api.MapPost("/git/gitignore", async (SaveGitIgnoreRequest req, IGitService svc) =>
+            Results.Ok(new { success = await svc.SaveGitIgnoreAsync(req) }));
+
+        api.MapPost("/git/gitignore/add", async (AddToGitIgnoreRequest req, IGitService svc) =>
+            Results.Ok(new { success = await svc.AddToGitIgnoreAsync(req) }));
+
+        api.MapGet("/git/gitignore/templates", async (IGitService svc) =>
+            Results.Ok(await svc.GetGitIgnoreTemplatesAsync()));
+
         // ------------------ SSH ------------------
         api.MapGet("/ssh/profiles", async (ISshService svc) =>
             Results.Ok(await svc.GetAllProfilesAsync()));

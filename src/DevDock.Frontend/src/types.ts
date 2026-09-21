@@ -568,3 +568,25 @@ export interface GithubActionSetupResult {
   generatedFiles?: string[];
   message: string;
 }
+
+export interface GitIgnoreInfo {
+  exists: boolean;
+  content: string;
+  filePath: string;
+  detectedPresets: string[];
+  recommendedTemplate: string;
+}
+
+export interface SaveGitIgnoreRequest {
+  repoPath: string;
+  content: string;
+  autoCommit?: boolean;
+  commitMessage?: string;
+}
+
+export interface AddToGitIgnoreRequest {
+  repoPath: string;
+  pattern: string;
+  autoCommit?: boolean;
+}
+

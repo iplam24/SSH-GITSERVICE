@@ -47,4 +47,8 @@ public interface IGitService
     Task<string> InitRepositoryAsync(string repoPath);
     Task<GithubActionSetupResult> SetupGithubActionAsync(GithubActionSetupRequest request);
     Task<RepoTechInspectionResult> InspectRepositoryTechAsync(InspectRepoRequest request);
+    Task<GitIgnoreInfo> GetGitIgnoreAsync(string repoPath);
+    Task<bool> SaveGitIgnoreAsync(SaveGitIgnoreRequest request);
+    Task<bool> AddToGitIgnoreAsync(AddToGitIgnoreRequest request);
+    Task<Dictionary<string, string>> GetGitIgnoreTemplatesAsync();
 }

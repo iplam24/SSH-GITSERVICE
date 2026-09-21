@@ -19,7 +19,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
 }) => {
   return (
     <header
-      className="h-9 bg-[#0B0F17] border-b border-[#1A2433] flex items-center justify-between px-3 select-none flex-shrink-0 z-50 transition-colors"
+      className="h-9 bg-[#0a0c10] border-b border-[#1a1e2a] flex items-center justify-between px-3 select-none flex-shrink-0 z-50 transition-colors"
       onMouseDown={(e) => {
         // Drag window if not clicked on interactive elements
         if ((e.target as HTMLElement).closest('button, input, a')) return;
@@ -33,60 +33,60 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           <span className="font-semibold text-xs text-slate-200 tracking-wide font-sans">
             DevDock Workstation
           </span>
-          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50 font-mono font-medium">
+          <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 border border-white/[0.08] font-mono font-medium">
             v1.5
           </span>
         </div>
       </div>
 
-      {/* Center: Command Palette Trigger (Raycast / Windows 11 style) */}
+      {/* Center: Command Palette Trigger (Raycast / Modern Dev Tool style) */}
       <button
         type="button"
         onClick={onOpenCommandPalette}
-        className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#0E1526]/90 hover:bg-[#151F36] border border-[#1E2C48] text-slate-400 text-xs transition-all duration-150 group w-72 max-w-sm justify-between shadow-sm hover:border-slate-600 cursor-pointer"
+        className="flex items-center gap-2 px-3 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] border border-[#1e2332] text-slate-400 text-xs transition-all duration-150 group w-72 max-w-sm justify-between shadow-subtle hover:border-slate-600 cursor-pointer"
       >
         <div className="flex items-center gap-2">
-          <Search className="w-3.5 h-3.5 text-slate-400 group-hover:text-accent transition-colors" />
+          <Search className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
           <span className="text-slate-400 group-hover:text-slate-200 text-[11px]">Tìm lệnh, AI, kho Git, SSH...</span>
         </div>
-        <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-[#070B14] text-slate-400 group-hover:text-slate-200 rounded border border-[#1E2C48]">
+        <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-[#0c0e14] text-slate-400 group-hover:text-slate-300 rounded border border-[#1e2332]">
           Ctrl+Space
         </kbd>
       </button>
 
-      {/* Right: AI badge, Metrics chip & Windows 11 Controls */}
-      <div className="flex items-center gap-2.5">
+      {/* Right: AI badge, Metrics chip & Controls */}
+      <div className="flex items-center gap-2">
         {/* Active AI Provider Chip */}
         {activeAiModel && (
           <button
             type="button"
             onClick={onOpenAiHub}
-            className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[10px] text-cyan-300 font-medium transition-colors cursor-pointer"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#12151f] hover:bg-[#181c28] border border-[#1e2332] text-[11px] text-slate-300 font-medium transition-colors cursor-pointer"
             title="Nhà cung cấp AI đang kích hoạt — Bấm để mở AI Hub"
           >
-            <Sparkles className="w-3 h-3 text-cyan-400 animate-pulse" />
+            <Sparkles className="w-3 h-3 text-accent" />
             <span className="max-w-[120px] truncate">{activeAiModel}</span>
           </button>
         )}
 
         {/* System Telemetry Chips */}
         {metrics && (
-          <div className="hidden sm:flex items-center gap-2.5 px-2 py-0.5 rounded-md bg-[#0E1526] border border-[#1A253C] text-[10px] font-mono text-slate-400">
-            <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-              <Cpu className="w-3 h-3 text-slate-400" />
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-[#12151f] border border-[#1e2332] text-[10px] font-mono text-slate-400">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />
+              <Cpu className="w-3 h-3 text-slate-500" />
               <span>{(metrics.cpuUsagePercent ?? (metrics as any).CpuUsagePercent ?? 0).toFixed(0)}%</span>
             </div>
-            <div className="w-[1px] h-2.5 bg-[#1F2B44]" />
-            <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              <HardDrive className="w-3 h-3 text-slate-400" />
+            <div className="w-[1px] h-2.5 bg-[#1e2332]" />
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500/80" />
+              <HardDrive className="w-3 h-3 text-slate-500" />
               <span>{(metrics.ramUsagePercent ?? (metrics as any).RamUsagePercent ?? 0).toFixed(0)}%</span>
             </div>
           </div>
         )}
 
-        {/* Windows 11 Fluent Window Controls */}
+        {/* Windows 11 Controls */}
         <div className="flex items-center -mr-2">
           <button
             type="button"

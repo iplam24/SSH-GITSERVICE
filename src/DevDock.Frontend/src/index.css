@@ -3,14 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --accent: #10b981;
-  --accent-hover: #059669;
-  --accent-light: #34d399;
-  --accent-dark: #047857;
-  --accent-bg: rgba(16, 185, 129, 0.12);
-  --accent-bg-hover: rgba(16, 185, 129, 0.22);
-  --accent-border: rgba(16, 185, 129, 0.35);
-  --accent-glow: 0 0 20px -3px rgba(16, 185, 129, 0.3);
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-light: #60a5fa;
+  --accent-dark: #1d4ed8;
+  --accent-bg: rgba(59, 130, 246, 0.1);
+  --accent-bg-hover: rgba(59, 130, 246, 0.18);
+  --accent-border: rgba(59, 130, 246, 0.25);
+  --accent-glow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+}
+
+[data-accent="blue"] {
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-light: #60a5fa;
+  --accent-dark: #1d4ed8;
+  --accent-bg: rgba(59, 130, 246, 0.1);
+  --accent-bg-hover: rgba(59, 130, 246, 0.18);
+  --accent-border: rgba(59, 130, 246, 0.25);
+  --accent-glow: 0 0 0 1px rgba(59, 130, 246, 0.3);
 }
 
 [data-accent="emerald"] {
@@ -18,21 +29,21 @@
   --accent-hover: #059669;
   --accent-light: #34d399;
   --accent-dark: #047857;
-  --accent-bg: rgba(16, 185, 129, 0.12);
-  --accent-bg-hover: rgba(16, 185, 129, 0.22);
-  --accent-border: rgba(16, 185, 129, 0.35);
-  --accent-glow: 0 0 20px -3px rgba(16, 185, 129, 0.3);
+  --accent-bg: rgba(16, 185, 129, 0.1);
+  --accent-bg-hover: rgba(16, 185, 129, 0.18);
+  --accent-border: rgba(16, 185, 129, 0.25);
+  --accent-glow: 0 0 0 1px rgba(16, 185, 129, 0.3);
 }
 
 [data-accent="cyan"] {
-  --accent: #06b6d4;
-  --accent-hover: #0891b2;
-  --accent-light: #22d3ee;
-  --accent-dark: #0e7490;
-  --accent-bg: rgba(6, 182, 212, 0.12);
-  --accent-bg-hover: rgba(6, 182, 212, 0.22);
-  --accent-border: rgba(6, 182, 212, 0.35);
-  --accent-glow: 0 0 20px -3px rgba(6, 182, 212, 0.3);
+  --accent: #0ea5e9;
+  --accent-hover: #0284c7;
+  --accent-light: #38bdf8;
+  --accent-dark: #0369a1;
+  --accent-bg: rgba(14, 165, 233, 0.1);
+  --accent-bg-hover: rgba(14, 165, 233, 0.18);
+  --accent-border: rgba(14, 165, 233, 0.25);
+  --accent-glow: 0 0 0 1px rgba(14, 165, 233, 0.3);
 }
 
 [data-accent="violet"] {
@@ -40,10 +51,10 @@
   --accent-hover: #7c3aed;
   --accent-light: #a78bfa;
   --accent-dark: #6d28d9;
-  --accent-bg: rgba(139, 92, 246, 0.12);
-  --accent-bg-hover: rgba(139, 92, 246, 0.22);
-  --accent-border: rgba(139, 92, 246, 0.35);
-  --accent-glow: 0 0 20px -3px rgba(139, 92, 246, 0.3);
+  --accent-bg: rgba(139, 92, 246, 0.1);
+  --accent-bg-hover: rgba(139, 92, 246, 0.18);
+  --accent-border: rgba(139, 92, 246, 0.25);
+  --accent-glow: 0 0 0 1px rgba(139, 92, 246, 0.3);
 }
 
 [data-accent="rose"] {
@@ -51,10 +62,10 @@
   --accent-hover: #e11d48;
   --accent-light: #fb7185;
   --accent-dark: #be123c;
-  --accent-bg: rgba(244, 63, 94, 0.12);
-  --accent-bg-hover: rgba(244, 63, 94, 0.22);
-  --accent-border: rgba(244, 63, 94, 0.35);
-  --accent-glow: 0 0 20px -3px rgba(244, 63, 94, 0.3);
+  --accent-bg: rgba(244, 63, 94, 0.1);
+  --accent-bg-hover: rgba(244, 63, 94, 0.18);
+  --accent-border: rgba(244, 63, 94, 0.25);
+  --accent-glow: 0 0 0 1px rgba(244, 63, 94, 0.3);
 }
 
 [data-accent="amber"] {
@@ -62,19 +73,19 @@
   --accent-hover: #d97706;
   --accent-light: #fbbf24;
   --accent-dark: #b45309;
-  --accent-bg: rgba(245, 158, 11, 0.12);
-  --accent-bg-hover: rgba(245, 158, 11, 0.22);
-  --accent-border: rgba(245, 158, 11, 0.35);
-  --accent-glow: 0 0 20px -3px rgba(245, 158, 11, 0.3);
+  --accent-bg: rgba(245, 158, 11, 0.1);
+  --accent-bg-hover: rgba(245, 158, 11, 0.18);
+  --accent-border: rgba(245, 158, 11, 0.25);
+  --accent-glow: 0 0 0 1px rgba(245, 158, 11, 0.3);
 }
 
 @layer base {
   * {
-    border-color: #1E2A44;
+    border-color: #1e2230;
   }
   html, body {
-    background-color: #090D16;
-    color: #F8FAFC;
+    background-color: #0c0d12;
+    color: #f1f5f9;
     user-select: none;
     -webkit-user-select: none;
     -webkit-font-smoothing: antialiased;
@@ -94,7 +105,7 @@
 .border-accent-border { border-color: var(--accent-border); }
 .shadow-glow-accent { box-shadow: var(--accent-glow); }
 
-/* Custom Windows 11 sleek scrollbars */
+/* Custom sleek scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -103,11 +114,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #25334E;
+  background: #232838;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3B4E73;
+  background: #333a50;
 }
 
 /* Make inputs and code selectable */
@@ -118,7 +129,7 @@ input, textarea, pre, code, .selectable {
 
 /* Windows 11 Mica Glass utility */
 .mica-surface {
-  background: rgba(14, 20, 36, 0.85);
+  background: rgba(18, 20, 28, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }

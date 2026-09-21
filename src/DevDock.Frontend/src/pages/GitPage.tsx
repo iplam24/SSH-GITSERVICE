@@ -42,6 +42,12 @@ import {
   Cpu,
   Activity,
   CheckCircle2,
+  Lock,
+  Globe,
+  GitFork,
+  Star,
+  MoreHorizontal,
+  FolderOpen,
 } from 'lucide-react';
 import {
   ProjectItem,
@@ -62,6 +68,7 @@ import {
   GithubActionSetupResult,
   RepoTechInspectionResult,
   InspectRepoRequest,
+  GitIgnoreInfo,
 } from '../types';
 import { api } from '../services/api';
 
@@ -214,6 +221,15 @@ export const GitPage: React.FC<GitPageProps> = ({
   const [isOpenFolderModalOpen, setIsOpenFolderModalOpen] = useState(false);
   const [customFolderPath, setCustomFolderPath] = useState('');
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+
+  // GitIgnore Management states
+  const [isGitIgnoreModalOpen, setIsGitIgnoreModalOpen] = useState(false);
+  const [gitIgnoreInfo, setGitIgnoreInfo] = useState<GitIgnoreInfo | null>(null);
+  const [gitIgnoreContent, setGitIgnoreContent] = useState('');
+  const [isLoadingGitIgnore, setIsLoadingGitIgnore] = useState(false);
+  const [isSavingGitIgnore, setIsSavingGitIgnore] = useState(false);
+  const [gitIgnoreTemplates, setGitIgnoreTemplates] = useState<Record<string, string>>({});
+  const [gitIgnoreAutoCommit, setGitIgnoreAutoCommit] = useState(false);
 
   // Filter git projects
   const gitProjects = projects.filter((p) => p.isGitRepository);
@@ -986,6 +1002,83 @@ export const GitPage: React.FC<GitPageProps> = ({
     }
   };
 
+  const openGitIgnoreModal = async (path?: string) => {
+    const target = path || activeRepoPath;
+    if (!target) {
+      onShowToast('Vui lòng chọn hoặc mở một thư mục Git trước!', 'error');
+      return;
+    }
+    setIsGitIgnoreModalOpen(true);
+    setIsLoadingGitIgnore(true);
+    try {
+      const [info, templates] = await Promise.all([
+        api.getGitIgnore(target),
+        api.getGitIgnoreTemplates().catch(() => ({} as Record<string, string>)),
+      ]);
+      setGitIgnoreInfo(info);
+      setGitIgnoreContent(info.content || '');
+      setGitIgnoreTemplates(templates);
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi khi tải tệp .gitignore', 'error');
+    } finally {
+      setIsLoadingGitIgnore(false);
+    }
+  };
+
+  const handleSaveGitIgnore = async () => {
+    const target = activeRepoPath;
+    if (!target) return;
+    setIsSavingGitIgnore(true);
+    try {
+      const res = await api.saveGitIgnore({
+        repoPath: target,
+        content: gitIgnoreContent,
+        autoCommit: gitIgnoreAutoCommit,
+        commitMessage: 'Update .gitignore via DevDock',
+      });
+      if (res.success) {
+        onShowToast('Đã lưu tệp .gitignore thành công!', 'success');
+        setIsGitIgnoreModalOpen(false);
+        loadRepoData(target);
+      } else {
+        onShowToast('Không thể lưu tệp .gitignore', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi khi lưu .gitignore', 'error');
+    } finally {
+      setIsSavingGitIgnore(false);
+    }
+  };
+
+  const handleQuickIgnoreFile = async (filePattern: string) => {
+    const target = activeRepoPath;
+    if (!target) return;
+    try {
+      const res = await api.addToGitIgnore({
+        repoPath: target,
+        pattern: filePattern,
+        autoCommit: false,
+      });
+      if (res.success) {
+        onShowToast(`Đã thêm "${filePattern}" vào .gitignore!`, 'success');
+        loadRepoData(target);
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi khi thêm vào .gitignore', 'error');
+    }
+  };
+
+  const applyGitIgnoreTemplate = (templateKey: string) => {
+    const tpl = gitIgnoreTemplates[templateKey];
+    if (!tpl) return;
+    if (!gitIgnoreContent.trim()) {
+      setGitIgnoreContent(tpl);
+    } else {
+      setGitIgnoreContent((prev) => prev.trimEnd() + '\n\n' + tpl);
+    }
+    onShowToast(`Đã áp dụng mẫu ${templateKey} vào trình soạn thảo!`, 'info');
+  };
+
   const getPushShellCommands = () => {
     const p = pushLocalPath.trim() || 'D:\\du-an-cua-ban';
     const b = pushBranch.trim() || 'main';
@@ -1012,16 +1105,16 @@ export const GitPage: React.FC<GitPageProps> = ({
     : 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#0B0F17]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
       {/* Top Bar: Repo selector, Current Branch, Quick Push/Pull/Fetch */}
-      <div className="h-12 border-b border-[#1E293B] bg-[#0F172A] px-4 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <FolderGit2 className="w-4 h-4 text-emerald-400" />
+      <div className="h-11 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5">
+            <FolderGit2 className="w-4 h-4 text-slate-400" />
             <select
               value={activeRepoPath}
               onChange={(e) => onSelectRepoPath(e.target.value)}
-              className="bg-[#0B0F17] text-slate-200 text-xs rounded-lg px-2.5 py-1.5 border border-[#1E293B] focus:outline-none focus:border-emerald-500 font-medium cursor-pointer"
+              className="bg-[#12151f] hover:bg-[#171b26] text-slate-200 text-xs rounded-md px-2.5 py-1 border border-[#1e2332] focus:outline-none focus:border-accent font-medium cursor-pointer max-w-xs truncate"
             >
               {gitProjects.map((p) => (
                 <option key={p.id} value={p.path}>
@@ -1039,44 +1132,41 @@ export const GitPage: React.FC<GitPageProps> = ({
                 setCustomFolderPath(activeRepoPath || 'D:\\ToolTienich');
                 setIsOpenFolderModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-200 border border-[#334155] text-xs font-medium cursor-pointer transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
               title="Mở thư mục mã nguồn bất kỳ trên máy tính"
             >
-              <FolderGit2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>+ Mở Thư Mục Cục Bộ</span>
+              <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
+              <span>Mở Cục Bộ</span>
             </button>
 
             <button
               type="button"
-              onClick={() => {
-                setInitRepoPath(activeRepoPath || 'D:\\ToolTienich');
-                setIsInitRepoModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-medium cursor-pointer transition-colors"
-              title="Khởi tạo kho Git (git init) cho thư mục"
+              onClick={() => openGitIgnoreModal()}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-amber-300 border border-amber-500/30 text-xs font-medium cursor-pointer transition-colors"
+              title="Quản lý & tạo tệp .gitignore cho dự án"
             >
-              <Zap className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Khởi tạo Git</span>
+              <Shield className="w-3.5 h-3.5 text-amber-400" />
+              <span>.gitignore</span>
             </button>
           </div>
 
           {repoStatus && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0B0F17] border border-[#1E293B] text-xs font-mono text-emerald-400">
-              <GitBranch className="w-3.5 h-3.5" />
-              <span className="font-semibold">{repoStatus.currentBranch}</span>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-xs font-mono text-slate-300">
+              <GitBranch className="w-3.5 h-3.5 text-slate-400" />
+              <span className="font-semibold text-slate-200">{repoStatus.currentBranch}</span>
               {repoStatus.aheadCount > 0 && (
-                <span className="text-emerald-300 text-[10px] ml-1">↑{repoStatus.aheadCount}</span>
+                <span className="text-emerald-400 text-[10px] ml-0.5">↑{repoStatus.aheadCount}</span>
               )}
               {repoStatus.behindCount > 0 && (
-                <span className="text-amber-400 text-[10px] ml-1">↓{repoStatus.behindCount}</span>
+                <span className="text-amber-400 text-[10px] ml-0.5">↓{repoStatus.behindCount}</span>
               )}
             </div>
           )}
         </div>
 
-        {/* Global Git Actions */}
+        {/* Global Git Actions & Cloud Hub */}
         <div className="flex items-center gap-2">
-          {/* Quick Remote / Cloud actions requested by user */}
+          {/* Quick Remote / Cloud actions */}
           <button
             type="button"
             onClick={() => {
@@ -1085,21 +1175,21 @@ export const GitPage: React.FC<GitPageProps> = ({
                 loadCloudRepos(selectedAccountId, cloudSearch);
               }
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-xs font-semibold cursor-pointer transition-colors"
-            title="Tải về danh sách Repository từ GitHub/GitLab (Fetch Cloud Repos)"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
+            title="Duyệt và tìm nạp danh sách Repository từ GitHub/GitLab"
           >
-            <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Tải DS Repo (Fetch)</span>
+            <Cloud className="w-3.5 h-3.5 text-slate-400" />
+            <span>Kho Cloud</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsCreateCloudRepoModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-semibold cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
             title="Tạo kho lưu trữ mới trên Cloud GitHub/GitLab"
           >
-            <Plus className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Tạo Repo Mới</span>
+            <Plus className="w-3.5 h-3.5 text-slate-400" />
+            <span>Tạo Repo</span>
           </button>
 
           <button
@@ -1108,66 +1198,69 @@ export const GitPage: React.FC<GitPageProps> = ({
               setCicdResult(null);
               setIsCicdModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 text-purple-200 border border-purple-500/40 text-xs font-semibold cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
             title="Tự động thiết lập GitHub Actions CI/CD triển khai ứng dụng lên máy chủ Server"
           >
-            <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-            <span>CI/CD Server</span>
+            <Zap className="w-3.5 h-3.5 text-accent" />
+            <span>CI/CD</span>
           </button>
 
-          <div className="h-4 w-px bg-slate-700 mx-0.5" />
+          <div className="h-4 w-px bg-[#1e2332] mx-1" />
 
-          <button
-            type="button"
-            onClick={handleFetch}
-            disabled={loading || !activeRepoPath}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1E293B] hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50"
-            title="Đồng bộ cập nhật mới từ Remote (Fetch)"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Đồng bộ (Fetch)</span>
-          </button>
+          {/* Unified Git Sync Controls Segmented Group */}
+          <div className="inline-flex items-center rounded-md border border-[#1e2332] bg-[#12151f] overflow-hidden">
+            <button
+              type="button"
+              onClick={handleFetch}
+              disabled={loading || !activeRepoPath}
+              className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[#171b26] text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 border-r border-[#1e2332]"
+              title="Đồng bộ cập nhật mới từ Remote (Fetch)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
+              <span>Fetch</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handlePull}
-            disabled={loading || !activeRepoPath}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1E293B] hover:bg-slate-700 text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50"
-            title="Kéo thay đổi mới về nhánh hiện tại (Pull)"
-          >
-            <ArrowDown className="w-3.5 h-3.5 text-blue-400" />
-            <span>Kéo về (Pull)</span>
-          </button>
+            <button
+              type="button"
+              onClick={handlePull}
+              disabled={loading || !activeRepoPath}
+              className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[#171b26] text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 border-r border-[#1e2332]"
+              title="Kéo thay đổi mới về nhánh hiện tại (Pull)"
+            >
+              <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
+              <span>Pull</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handlePush}
-            disabled={loading || !activeRepoPath}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
-            title="Đẩy các commit lên remote (Push)"
-          >
-            <ArrowUp className="w-3.5 h-3.5" />
-            <span>Đẩy lên (Push)</span>
-          </button>
+            <button
+              type="button"
+              onClick={handlePush}
+              disabled={loading || !activeRepoPath}
+              className="flex items-center gap-1.5 px-3 py-1 bg-accent hover:bg-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
+              title="Đẩy các commit lên remote (Push)"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+              <span>Push</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Sub-Tabs Navigation Bar */}
-      <div className="h-10 border-b border-[#1E293B] bg-[#070A0F] px-4 flex items-center justify-between flex-shrink-0">
+      <div className="h-9 border-b border-[#1a1e2a] bg-[#0a0c10] px-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('changes')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
               activeTab === 'changes'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#111827]'
+                ? 'bg-white/[0.08] text-slate-100 font-semibold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Thay đổi</span>
             {totalChanges > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono">
+              <span className="px-1.5 py-0.2 rounded-full bg-accent/20 text-accent-light text-[10px] font-mono">
                 {totalChanges}
               </span>
             )}
@@ -1176,10 +1269,10 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
               activeTab === 'history'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#111827]'
+                ? 'bg-white/[0.08] text-slate-100 font-semibold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
             }`}
           >
             <History className="w-3.5 h-3.5" />
@@ -1192,10 +1285,10 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('branches')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
               activeTab === 'branches'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#111827]'
+                ? 'bg-white/[0.08] text-slate-100 font-semibold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
             }`}
           >
             <GitBranch className="w-3.5 h-3.5" />
@@ -1206,10 +1299,10 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('tags')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
               activeTab === 'tags'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#111827]'
+                ? 'bg-white/[0.08] text-slate-100 font-semibold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
             }`}
           >
             <Tag className="w-3.5 h-3.5" />
@@ -1222,15 +1315,15 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('cloud')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
               activeTab === 'cloud'
-                ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-semibold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#111827]'
+                ? 'bg-white/[0.08] text-slate-100 font-semibold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
             }`}
           >
-            <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Kho Remote (GitHub/GitLab/Fetch)</span>
-            <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono">
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Kho Remote (Cloud)</span>
+            <span className="px-1.5 py-0.2 rounded bg-white/[0.06] text-slate-400 text-[10px] font-mono">
               {remoteRepos.length > 0 ? remoteRepos.length : 'API'}
             </span>
           </button>
@@ -1244,10 +1337,20 @@ export const GitPage: React.FC<GitPageProps> = ({
               setInitRepoPath(activeRepoPath);
               setIsInitRepoModalOpen(true);
             }}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-300 text-[11px] font-mono border border-[#1E293B] cursor-pointer"
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 text-xs font-mono hover:bg-white/[0.04] transition-colors cursor-pointer"
             title="Khởi tạo kho Git cục bộ tại thư mục này (git init)"
           >
             <span>+ git init</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openGitIgnoreModal()}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-amber-400 hover:text-amber-300 text-xs font-mono hover:bg-amber-500/10 border border-amber-500/20 transition-colors cursor-pointer"
+            title="Quản lý & tạo tệp .gitignore cho dự án"
+          >
+            <Shield className="w-3 h-3 text-amber-400" />
+            <span>.gitignore</span>
           </button>
 
           <button
@@ -1280,13 +1383,13 @@ export const GitPage: React.FC<GitPageProps> = ({
         {activeTab === 'changes' && (
           <div className="flex-1 flex overflow-hidden">
             {/* Left Column: Changed Files List & Commit Box */}
-            <div className="w-80 border-r border-[#1E293B] bg-[#070A0F] flex flex-col justify-between flex-shrink-0 overflow-hidden">
+            <div className="w-80 border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col justify-between flex-shrink-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4">
                 {/* Staged files */}
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1E293B]">
+                  <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
                     <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       <span>Đã Stage ({repoStatus?.stagedFiles.length || 0})</span>
                     </div>
                     {repoStatus && repoStatus.stagedFiles.length > 0 && (
@@ -1305,15 +1408,15 @@ export const GitPage: React.FC<GitPageProps> = ({
                     <div
                       key={file.path}
                       onClick={() => loadFileDiff(activeRepoPath, file)}
-                      className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer group transition-colors ${
+                      className={`flex items-center justify-between p-2 rounded-md text-xs cursor-pointer group transition-colors ${
                         selectedFile?.path === file.path
-                          ? 'bg-[#111827] text-emerald-400 font-medium border border-emerald-500/30'
-                          : 'text-slate-300 hover:bg-[#111827]'
+                          ? 'bg-white/[0.08] text-slate-100 font-medium'
+                          : 'text-slate-300 hover:bg-white/[0.03]'
                       }`}
                     >
                       <span className="truncate flex-1 font-mono text-[11px]">{file.path}</span>
                       <div className="flex items-center gap-1">
-                        <span className="px-1 text-[9px] font-mono rounded bg-emerald-500/20 text-emerald-400">
+                        <span className="px-1 text-[9px] font-mono rounded bg-emerald-500/15 text-emerald-400">
                           {file.status[0]}
                         </span>
                         <button
@@ -1337,7 +1440,7 @@ export const GitPage: React.FC<GitPageProps> = ({
 
                 {/* Unstaged files */}
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1E293B]">
+                  <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-amber-400" />
                       <span>Chưa Stage ({repoStatus?.unstagedFiles.length || 0})</span>
@@ -1358,15 +1461,15 @@ export const GitPage: React.FC<GitPageProps> = ({
                     <div
                       key={file.path}
                       onClick={() => loadFileDiff(activeRepoPath, file)}
-                      className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer group transition-colors ${
+                      className={`flex items-center justify-between p-2 rounded-md text-xs cursor-pointer group transition-colors ${
                         selectedFile?.path === file.path
-                          ? 'bg-[#111827] text-emerald-400 font-medium border border-emerald-500/30'
-                          : 'text-slate-300 hover:bg-[#111827]'
+                          ? 'bg-white/[0.08] text-slate-100 font-medium'
+                          : 'text-slate-300 hover:bg-white/[0.03]'
                       }`}
                     >
                       <span className="truncate flex-1 font-mono text-[11px]">{file.path}</span>
                       <div className="flex items-center gap-1">
-                        <span className="px-1 text-[9px] font-mono rounded bg-amber-500/20 text-amber-400">
+                        <span className="px-1 text-[9px] font-mono rounded bg-amber-500/15 text-amber-400">
                           {file.status[0]}
                         </span>
                         <button
@@ -1391,6 +1494,17 @@ export const GitPage: React.FC<GitPageProps> = ({
                         >
                           <RotateCcw className="w-3 h-3" />
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickIgnoreFile(file.path);
+                          }}
+                          className="p-1 text-slate-400 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title={`Bỏ qua tệp "${file.path}" (Thêm vào .gitignore)`}
+                        >
+                          <Shield className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1402,7 +1516,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                 {/* Untracked files */}
                 {repoStatus && repoStatus.untrackedFiles.length > 0 && (
                   <div>
-                    <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1E293B]">
+                    <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
                       <div className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-blue-400" />
                         <span>Tệp mới chưa theo dõi ({repoStatus.untrackedFiles.length})</span>
@@ -1412,15 +1526,15 @@ export const GitPage: React.FC<GitPageProps> = ({
                       <div
                         key={file.path}
                         onClick={() => loadFileDiff(activeRepoPath, file)}
-                        className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer group transition-colors ${
+                        className={`flex items-center justify-between p-2 rounded-md text-xs cursor-pointer group transition-colors ${
                           selectedFile?.path === file.path
-                            ? 'bg-[#111827] text-emerald-400 font-medium border border-emerald-500/30'
-                            : 'text-slate-300 hover:bg-[#111827]'
+                            ? 'bg-white/[0.08] text-slate-100 font-medium'
+                            : 'text-slate-300 hover:bg-white/[0.03]'
                         }`}
                       >
                         <span className="truncate flex-1 font-mono text-[11px]">{file.path}</span>
                         <div className="flex items-center gap-1">
-                          <span className="px-1 text-[9px] font-mono rounded bg-blue-500/20 text-blue-400">
+                          <span className="px-1 text-[9px] font-mono rounded bg-blue-500/15 text-blue-400">
                             U
                           </span>
                           <button
@@ -1434,6 +1548,17 @@ export const GitPage: React.FC<GitPageProps> = ({
                           >
                             <Plus className="w-3 h-3" />
                           </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuickIgnoreFile(file.path);
+                            }}
+                            className="p-1 text-slate-400 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title={`Bỏ qua tệp "${file.path}" (Thêm vào .gitignore)`}
+                          >
+                            <Shield className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1442,18 +1567,18 @@ export const GitPage: React.FC<GitPageProps> = ({
               </div>
 
               {/* Commit Input Box */}
-              <div className="p-3 border-t border-[#1E293B] bg-[#0F172A] flex flex-col gap-2 flex-shrink-0">
+              <div className="p-3 border-t border-[#1a1e2a] bg-[#0e1017] flex flex-col gap-2 flex-shrink-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-slate-300">Thông điệp Commit:</span>
+                  <span className="text-[11px] font-medium text-slate-300">Thông điệp Commit:</span>
                   <button
                     type="button"
                     onClick={handleAiGenerateCommit}
                     disabled={isGeneratingAiCommit || !activeRepoPath}
-                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-medium transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-[#12151f] hover:bg-[#181c28] border border-[#1e2332] text-slate-300 font-medium transition-colors cursor-pointer"
                     title="Phân tích thay đổi git và sinh thông điệp commit tự động bằng AI"
                   >
-                    <Sparkles className={`w-3 h-3 ${isGeneratingAiCommit ? 'animate-spin text-cyan-400' : 'text-cyan-400'}`} />
-                    <span>{isGeneratingAiCommit ? 'AI đang viết...' : '✨ AI Viết Commit'}</span>
+                    <Sparkles className={`w-3 h-3 ${isGeneratingAiCommit ? 'animate-spin text-accent' : 'text-accent'}`} />
+                    <span>{isGeneratingAiCommit ? 'Đang viết...' : 'AI Viết Commit'}</span>
                   </button>
                 </div>
                 <input
@@ -1463,21 +1588,21 @@ export const GitPage: React.FC<GitPageProps> = ({
                   onKeyDown={(e) => {
                     if (e.ctrlKey && e.key === 'Enter') handleCommit();
                   }}
-                  placeholder="Tiêu đề commit (ngắn gọn)..."
-                  className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-1.5 text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                  placeholder="Tiêu đề commit..."
+                  className="w-full bg-[#12151f] border border-[#1e2332] rounded-md px-2.5 py-1.5 text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:border-accent"
                 />
                 <textarea
                   value={commitBody}
                   onChange={(e) => setCommitBody(e.target.value)}
                   rows={2}
-                  placeholder="Mô tả chi tiết bổ sung (tùy chọn)..."
-                  className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-1.5 text-slate-100 text-xs focus:outline-none focus:border-emerald-500 resize-none font-mono text-[11px]"
+                  placeholder="Mô tả chi tiết (tùy chọn)..."
+                  className="w-full bg-[#12151f] border border-[#1e2332] rounded-md px-2.5 py-1.5 text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:border-accent resize-none font-mono text-[11px]"
                 />
                 <button
                   type="button"
                   onClick={handleCommit}
                   disabled={!commitSubject.trim() || !activeRepoPath}
-                  className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-slate-950 font-semibold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                  className="w-full py-1.5 bg-accent hover:bg-accent-hover disabled:opacity-40 text-white font-medium text-xs rounded-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Tạo Commit (Ctrl+Enter)</span>
@@ -1486,29 +1611,29 @@ export const GitPage: React.FC<GitPageProps> = ({
             </div>
 
             {/* Right Column: Diff Viewer */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-[#0B0F17]">
+            <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
               {selectedFile ? (
                 <>
-                  <div className="h-10 border-b border-[#1E293B] bg-[#0D131F] px-4 flex items-center justify-between flex-shrink-0">
+                  <div className="h-9 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2">
-                      <FileCode className="w-4 h-4 text-slate-400" />
+                      <FileCode className="w-3.5 h-3.5 text-slate-400" />
                       <span className="text-xs font-mono font-medium text-slate-200">
                         {selectedFile.path}
                       </span>
                       {selectedFile.isStaged && (
-                        <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono">
+                        <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-mono">
                           Staged
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1 bg-[#111827] p-0.5 rounded-lg border border-[#1E293B]">
+                    <div className="flex items-center gap-1 bg-[#12151f] p-0.5 rounded-md border border-[#1e2332]">
                       <button
                         type="button"
                         onClick={() => setDiffMode('unified')}
-                        className={`px-2 py-0.5 text-xs rounded font-medium cursor-pointer ${
+                        className={`px-2 py-0.5 text-xs rounded font-medium cursor-pointer transition-colors ${
                           diffMode === 'unified'
-                            ? 'bg-emerald-500/20 text-emerald-400'
+                            ? 'bg-white/[0.08] text-slate-100'
                             : 'text-slate-400 hover:text-slate-200'
                         }`}
                       >
@@ -1517,9 +1642,9 @@ export const GitPage: React.FC<GitPageProps> = ({
                       <button
                         type="button"
                         onClick={() => setDiffMode('split')}
-                        className={`px-2 py-0.5 text-xs rounded font-medium cursor-pointer ${
+                        className={`px-2 py-0.5 text-xs rounded font-medium cursor-pointer transition-colors ${
                           diffMode === 'split'
-                            ? 'bg-emerald-500/20 text-emerald-400'
+                            ? 'bg-white/[0.08] text-slate-100'
                             : 'text-slate-400 hover:text-slate-200'
                         }`}
                       >
@@ -1530,8 +1655,8 @@ export const GitPage: React.FC<GitPageProps> = ({
 
                   <div className="flex-1 overflow-auto p-4 font-mono text-xs select-text">
                     {diffResult?.hunks.map((hunk, hIdx) => (
-                      <div key={hIdx} className="mb-4 border border-[#1E293B] rounded-lg overflow-hidden">
-                        <div className="bg-[#111827] px-3 py-1 text-slate-500 text-[11px] border-b border-[#1E293B]">
+                      <div key={hIdx} className="mb-4 border border-[#1e2332] rounded-md overflow-hidden">
+                        <div className="bg-[#12151f] px-3 py-1 text-slate-500 text-[11px] border-b border-[#1e2332]">
                           {hunk.header}
                         </div>
                         {diffMode === 'unified' ? (
@@ -1634,21 +1759,21 @@ export const GitPage: React.FC<GitPageProps> = ({
         {activeTab === 'history' && (
           <div className="flex-1 flex overflow-hidden">
             {/* Left: Commit list */}
-            <div className="w-[420px] border-r border-[#1E293B] bg-[#070A0F] flex flex-col flex-shrink-0">
-              <div className="p-3 border-b border-[#1E293B] flex items-center gap-2">
+            <div className="w-[400px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col flex-shrink-0">
+              <div className="p-3 border-b border-[#1a1e2a] flex items-center gap-2">
                 <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
                   <input
                     type="text"
                     value={historySearch}
                     onChange={(e) => setHistorySearch(e.target.value)}
                     placeholder="Lọc commit theo thông điệp, tác giả, hash..."
-                    className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg pl-8 pr-3 py-1.5 text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[#12151f] border border-[#1e2332] rounded-md pl-8 pr-3 py-1.5 text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:border-accent"
                   />
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto divide-y divide-[#1E293B]/40">
+              <div className="flex-1 overflow-y-auto divide-y divide-[#1a1e2a]">
                 {filteredCommits.map((c) => {
                   const isSelected = selectedCommitHash === c.hash;
                   return (
@@ -1657,12 +1782,12 @@ export const GitPage: React.FC<GitPageProps> = ({
                       onClick={() => handleInspectCommit(c.hash)}
                       className={`p-3 cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-[#111827] border-l-2 border-emerald-500'
-                          : 'hover:bg-[#0D131F]'
+                          ? 'bg-white/[0.07] border-l-2 border-accent'
+                          : 'hover:bg-white/[0.02]'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-mono text-[11px] font-semibold text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        <span className="font-mono text-[11px] font-medium text-slate-300 bg-white/[0.05] px-1.5 py-0.5 rounded border border-white/[0.08]">
                           {c.shortHash}
                         </span>
                         <span className="text-[10px] text-slate-500 font-mono">{c.relativeDate}</span>
@@ -1685,18 +1810,18 @@ export const GitPage: React.FC<GitPageProps> = ({
             </div>
 
             {/* Right: Commit Inspector & Actions */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-[#0B0F17]">
+            <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
               {selectedCommitHash && commitDetails ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
                   {/* Commit Inspector Header */}
-                  <div className="p-4 border-b border-[#1E293B] bg-[#0D131F] flex flex-col gap-3 flex-shrink-0">
+                  <div className="p-4 border-b border-[#1a1e2a] bg-[#0e1017] flex flex-col gap-3 flex-shrink-0">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-100 mb-1">
+                        <h3 className="text-sm font-semibold text-slate-100 mb-1">
                           {commitDetails.commit.subject}
                         </h3>
-                        <div className="flex items-center gap-3 text-xs text-slate-400 font-mono">
-                          <span className="text-emerald-400">{commitDetails.commit.hash}</span>
+                        <div className="flex items-center gap-2.5 text-xs text-slate-400 font-mono">
+                          <span className="text-accent-light">{commitDetails.commit.hash}</span>
                           <span>•</span>
                           <span>{commitDetails.commit.authorName} ({commitDetails.commit.authorEmail})</span>
                           <span>•</span>
@@ -1705,24 +1830,24 @@ export const GitPage: React.FC<GitPageProps> = ({
                       </div>
 
                       {/* Action buttons: Cherry-pick, Revert, Reset */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleCherryPick(commitDetails.commit.hash)}
-                          className="px-2.5 py-1 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-300 text-xs font-medium border border-[#1E293B] flex items-center gap-1.5 cursor-pointer"
+                          className="px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 text-xs font-medium border border-[#1e2332] flex items-center gap-1.5 cursor-pointer transition-colors"
                           title="Áp dụng commit này vào nhánh hiện tại"
                         >
-                          <GitMerge className="w-3.5 h-3.5 text-purple-400" />
+                          <GitMerge className="w-3.5 h-3.5 text-slate-400" />
                           <span>Cherry-pick</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handleRevert(commitDetails.commit.hash)}
-                          className="px-2.5 py-1 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-300 text-xs font-medium border border-[#1E293B] flex items-center gap-1.5 cursor-pointer"
+                          className="px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 text-xs font-medium border border-[#1e2332] flex items-center gap-1.5 cursor-pointer transition-colors"
                           title="Tạo commit hoàn tác commit này"
                         >
-                          <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                          <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
                           <span>Revert</span>
                         </button>
 
@@ -1732,7 +1857,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                             setResetCommitRef(commitDetails.commit.hash);
                             setIsResetModalOpen(true);
                           }}
-                          className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-medium border border-rose-500/30 flex items-center gap-1.5 cursor-pointer"
+                          className="px-2.5 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-medium border border-rose-500/20 flex items-center gap-1.5 cursor-pointer transition-colors"
                           title="Đặt lại HEAD về commit này"
                         >
                           <CornerDownRight className="w-3.5 h-3.5" />
@@ -1742,7 +1867,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                     </div>
 
                     {commitDetails.commit.body && (
-                      <div className="bg-[#0B0F17] p-2.5 rounded-lg border border-[#1E293B] text-slate-300 text-xs whitespace-pre-wrap font-mono">
+                      <div className="bg-[#12151f] p-2.5 rounded-md border border-[#1e2332] text-slate-300 text-xs whitespace-pre-wrap font-mono">
                         {commitDetails.commit.body}
                       </div>
                     )}
@@ -1755,11 +1880,11 @@ export const GitPage: React.FC<GitPageProps> = ({
 
                   {/* Inspector Diff Preview & Changed files */}
                   <div className="flex-1 overflow-auto p-4 flex flex-col gap-4 select-text">
-                    <div className="bg-[#111827] rounded-lg border border-[#1E293B] overflow-hidden">
-                      <div className="px-3 py-1.5 bg-[#0B0F17] border-b border-[#1E293B] text-xs font-semibold text-slate-300">
+                    <div className="bg-[#12151f] rounded-md border border-[#1e2332] overflow-hidden">
+                      <div className="px-3 py-1.5 bg-[#0e1017] border-b border-[#1e2332] text-xs font-semibold text-slate-300">
                         Danh sách tệp thay đổi trong commit
                       </div>
-                      <div className="divide-y divide-[#1E293B]/40">
+                      <div className="divide-y divide-[#1e2332]">
                         {commitDetails.changedFiles.map((file, fIdx) => (
                           <div key={fIdx} className="px-3 py-1.5 flex items-center justify-between text-xs font-mono">
                             <span className="text-slate-200">{file.filePath}</span>
@@ -1777,7 +1902,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                     </div>
 
                     {/* Raw Patch Preview */}
-                    <div className="bg-[#070A0F] rounded-lg border border-[#1E293B] p-3">
+                    <div className="bg-[#0e1017] rounded-md border border-[#1e2332] p-3">
                       <div className="text-xs font-semibold text-slate-400 mb-2 font-mono">Full Patch Diff:</div>
                       <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
                         {commitDetails.diff}
@@ -1787,7 +1912,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
-                  <GitCommit className="w-12 h-12 mb-3 text-slate-700" />
+                  <GitCommit className="w-10 h-10 mb-2 text-slate-600 stroke-1" />
                   <p className="text-sm font-medium text-slate-400">Chọn commit từ danh sách để kiểm tra chi tiết</p>
                   <p className="text-xs text-slate-600 max-w-sm mt-1">
                     Xem toàn bộ patch, danh sách tệp sửa đổi, thống kê dòng thêm/bớt và thực hiện Cherry-pick, Revert hoặc Reset.
@@ -1800,13 +1925,13 @@ export const GitPage: React.FC<GitPageProps> = ({
 
         {/* ==================== TAB 3: BRANCHES & REMOTES ==================== */}
         {activeTab === 'branches' && (
-          <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full flex flex-col gap-6">
+          <div className="flex-1 overflow-y-auto p-5 max-w-5xl mx-auto w-full flex flex-col gap-5">
             {/* Section 1: Branches */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between pb-3 border-b border-[#1E293B]">
+            <div className="flex flex-col gap-3.5">
+              <div className="flex items-center justify-between pb-3 border-b border-[#1a1e2a]">
                 <div>
-                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                    <GitBranch className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <GitBranch className="w-4 h-4 text-slate-400" />
                     <span>Quản lý Nhánh (Branches)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
@@ -1818,27 +1943,27 @@ export const GitPage: React.FC<GitPageProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsMergeModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-300 text-xs font-semibold border border-[#1E293B] cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 text-xs font-medium border border-[#1e2332] cursor-pointer transition-colors"
                   >
-                    <GitMerge className="w-4 h-4 text-purple-400" />
+                    <GitMerge className="w-3.5 h-3.5 text-slate-400" />
                     <span>Hòa nhập (Merge)</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setIsRebaseModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-300 text-xs font-semibold border border-[#1E293B] cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 text-xs font-medium border border-[#1e2332] cursor-pointer transition-colors"
                   >
-                    <CornerDownRight className="w-4 h-4 text-amber-400" />
+                    <CornerDownRight className="w-3.5 h-3.5 text-slate-400" />
                     <span>Tái thiết lập (Rebase)</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setIsNewBranchModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-semibold cursor-pointer shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent-hover text-white text-xs font-medium cursor-pointer shadow-sm transition-colors"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
                     <span>Tạo nhánh mới</span>
                   </button>
                 </div>
@@ -1851,19 +1976,19 @@ export const GitPage: React.FC<GitPageProps> = ({
                   .map((b) => (
                     <div
                       key={b.name}
-                      className={`p-3.5 rounded-xl border flex items-center justify-between transition-colors ${
+                      className={`p-3 rounded-lg border flex items-center justify-between transition-colors ${
                         b.isCurrent
-                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
-                          : 'bg-[#111827] border-[#1E293B] text-slate-200 hover:border-slate-700'
+                          ? 'bg-white/[0.04] border-accent/40 text-slate-100 shadow-sm'
+                          : 'bg-[#12151f] border-[#1b202e] text-slate-200 hover:border-[#283046]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <GitBranch className={`w-4 h-4 ${b.isCurrent ? 'text-emerald-400' : 'text-slate-500'}`} />
+                        <GitBranch className={`w-4 h-4 ${b.isCurrent ? 'text-accent' : 'text-slate-500'}`} />
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-xs">{b.name}</span>
                             {b.isCurrent && (
-                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono border border-emerald-500/30">
+                              <span className="px-1.5 py-0.5 rounded bg-accent/15 text-accent-light text-[10px] font-mono border border-accent/25">
                                 Đang hoạt động
                               </span>
                             )}
@@ -1881,7 +2006,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                           <button
                             type="button"
                             onClick={() => handleCheckoutBranch(b.name)}
-                            className="px-2.5 py-1 rounded bg-[#0B0F17] hover:bg-[#1E293B] text-slate-300 text-xs border border-[#1E293B] cursor-pointer"
+                            className="px-2 py-1 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs border border-[#212738] cursor-pointer transition-colors"
                           >
                             Chuyển sang
                           </button>
@@ -1894,7 +2019,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                             setRenamedBranchNewName(b.name);
                             setIsRenameBranchModalOpen(true);
                           }}
-                          className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer"
+                          className="p-1.5 rounded hover:bg-white/[0.05] text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
                           title="Đổi tên nhánh"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -2000,9 +2125,9 @@ export const GitPage: React.FC<GitPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsCreateTagModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-semibold cursor-pointer shadow-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent-hover text-white text-xs font-medium cursor-pointer shadow-sm transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5" />
                   <span>Tạo Tag mới</span>
                 </button>
               </div>
@@ -2011,10 +2136,10 @@ export const GitPage: React.FC<GitPageProps> = ({
                 {tags.map((t) => (
                   <div
                     key={t.name}
-                    className="p-3.5 rounded-xl bg-[#111827] border border-[#1E293B] flex items-center justify-between hover:border-slate-700 transition-colors"
+                    className="p-3 rounded-lg bg-[#12151f] border border-[#1b202e] flex items-center justify-between hover:border-[#283046] transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <Tag className="w-4 h-4 text-emerald-400" />
+                    <div className="flex items-center gap-2.5">
+                      <Tag className="w-4 h-4 text-slate-400" />
                       <div>
                         <div className="font-semibold text-xs text-slate-200">{t.name}</div>
                         <div className="text-[11px] text-slate-500 font-mono mt-0.5">
@@ -2027,17 +2152,17 @@ export const GitPage: React.FC<GitPageProps> = ({
                       <button
                         type="button"
                         onClick={() => handlePushTag(t.name)}
-                        className="px-2.5 py-1 rounded bg-[#0B0F17] hover:bg-[#1E293B] text-slate-300 text-xs border border-[#1E293B] flex items-center gap-1 cursor-pointer"
+                        className="px-2 py-1 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs border border-[#212738] flex items-center gap-1 cursor-pointer transition-colors"
                         title="Đẩy tag này lên remote"
                       >
-                        <ArrowUp className="w-3 h-3 text-emerald-400" />
+                        <ArrowUp className="w-3 h-3 text-slate-400" />
                         <span>Push</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleDeleteTag(t.name)}
-                        className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 cursor-pointer"
+                        className="p-1.5 rounded text-slate-400 hover:text-rose-400 hover:bg-white/[0.05] cursor-pointer transition-colors"
                         title="Xóa Tag"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -2046,7 +2171,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                   </div>
                 ))}
                 {tags.length === 0 && (
-                  <div className="col-span-2 py-10 text-center text-slate-500 text-xs italic border border-dashed border-[#1E293B] rounded-xl">
+                  <div className="col-span-2 py-10 text-center text-slate-500 text-xs italic border border-dashed border-[#1e2332] rounded-xl">
                     Chưa có Tag nào được gắn trong kho này.
                   </div>
                 )}
@@ -2054,11 +2179,11 @@ export const GitPage: React.FC<GitPageProps> = ({
             </div>
 
             {/* Stashes Section */}
-            <div className="flex flex-col gap-4 pt-4 border-t border-[#1E293B]">
+            <div className="flex flex-col gap-3.5 pt-4 border-t border-[#1a1e2a]">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                    <Archive className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <Archive className="w-4 h-4 text-slate-400" />
                     <span>Ngăn xếp Lưu tạm (Stashes)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
@@ -2071,18 +2196,18 @@ export const GitPage: React.FC<GitPageProps> = ({
                     <button
                       type="button"
                       onClick={handlePopStash}
-                      className="px-3 py-1.5 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-amber-400 text-xs font-semibold border border-[#1E293B] cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 text-xs font-medium border border-[#1e2332] cursor-pointer transition-colors"
                     >
-                      Lấy ra & Xóa gần nhất (Pop)
+                      Lấy ra gần nhất (Pop)
                     </button>
                   )}
 
                   <button
                     type="button"
                     onClick={() => setIsStashModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-semibold cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
                     <span>Lưu tạm mới (Stash)</span>
                   </button>
                 </div>
@@ -2092,10 +2217,10 @@ export const GitPage: React.FC<GitPageProps> = ({
                 {stashes.map((s) => (
                   <div
                     key={s.index}
-                    className="p-3.5 rounded-xl bg-[#111827] border border-[#1E293B] flex items-center justify-between group hover:border-slate-700 transition-colors"
+                    className="p-3 rounded-lg bg-[#12151f] border border-[#1b202e] flex items-center justify-between group hover:border-[#283046] transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="w-7 h-7 rounded-lg bg-[#0B0F17] text-amber-400 border border-[#1E293B] flex items-center justify-center font-mono text-xs font-bold">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-6 h-6 rounded bg-[#161a26] text-slate-300 border border-[#212738] flex items-center justify-center font-mono text-xs font-medium">
                         #{s.index}
                       </span>
                       <div>
@@ -2140,24 +2265,24 @@ export const GitPage: React.FC<GitPageProps> = ({
 
         {/* ==================== TAB 5: CLOUD REPOSITORIES ==================== */}
         {activeTab === 'cloud' && (
-          <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full flex flex-col gap-5">
+          <div className="flex-1 overflow-y-auto p-5 max-w-6xl mx-auto w-full flex flex-col gap-4">
             {/* Header & Account Selection */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1E293B]">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#1a1e2a]">
               <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <Cloud className="w-5 h-5 text-blue-400" />
+                <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                  <Cloud className="w-4 h-4 text-slate-400" />
                   <span>Kho Lưu Trữ Cloud & Tích Hợp API</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Duyệt kho từ xa, 1-Click Clone, Tạo kho mới trên Cloud và Xuất bản dự án cục bộ lên GitHub/GitLab.
+                  Duyệt kho từ xa, Clone 1-click và xuất bản dự án cục bộ lên GitHub/GitLab.
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={selectedAccountId}
                   onChange={(e) => setSelectedAccountId(e.target.value)}
-                  className="bg-[#111827] text-slate-200 text-xs rounded-lg px-3 py-1.5 border border-[#1E293B] focus:outline-none focus:border-blue-500 font-medium cursor-pointer"
+                  className="bg-[#12151f] hover:bg-[#171b26] text-slate-200 text-xs rounded-md px-2.5 py-1.5 border border-[#1e2332] focus:outline-none focus:border-accent font-medium cursor-pointer"
                 >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -2173,30 +2298,30 @@ export const GitPage: React.FC<GitPageProps> = ({
                   type="button"
                   onClick={() => setIsPublishModalOpen(true)}
                   disabled={!activeRepoPath || accounts.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-200 text-xs font-semibold border border-[#1E293B] cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 text-xs font-medium border border-[#1e2332] cursor-pointer disabled:opacity-50 transition-colors"
                   title="Xuất bản kho cục bộ đang mở lên tài khoản Cloud này"
                 >
-                  <UploadCloud className="w-4 h-4 text-emerald-400" />
-                  <span>Xuất bản Kho Cục Bộ</span>
+                  <UploadCloud className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Xuất bản Cục Bộ</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsCreateCloudRepoModalOpen(true)}
                   disabled={accounts.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold cursor-pointer shadow-sm disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent-hover text-white text-xs font-medium cursor-pointer shadow-sm disabled:opacity-50 transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Tạo Kho Mới trên Cloud</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tạo Kho Mới</span>
                 </button>
               </div>
             </div>
 
-            {/* Rate limit & Search bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            {/* Search bar & Rate limit */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
               <div className="flex items-center gap-2 flex-1 w-full">
                 <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
                   <input
                     type="text"
                     value={cloudSearch}
@@ -2205,7 +2330,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                       if (e.key === 'Enter') loadCloudRepos(selectedAccountId, cloudSearch);
                     }}
                     placeholder="Tìm kiếm kho từ xa trên tài khoản Cloud (nhấn Enter)..."
-                    className="w-full bg-[#111827] border border-[#1E293B] rounded-lg pl-9 pr-3 py-1.5 text-slate-100 text-xs focus:outline-none focus:border-blue-500"
+                    className="w-full bg-[#12151f] border border-[#1e2332] rounded-md pl-8 pr-3 py-1.5 text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:border-accent"
                   />
                 </div>
 
@@ -2213,11 +2338,11 @@ export const GitPage: React.FC<GitPageProps> = ({
                   type="button"
                   onClick={() => loadCloudRepos(selectedAccountId, cloudSearch)}
                   disabled={loadingCloudRepos || !selectedAccountId}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-xs font-semibold cursor-pointer transition-colors shrink-0 disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors shrink-0 disabled:opacity-50"
                   title="Tải về danh sách tất cả các Repository từ GitHub/GitLab (Fetch)"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${loadingCloudRepos ? 'animate-spin' : ''}`} />
-                  <span>Fetch Repos</span>
+                  <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${loadingCloudRepos ? 'animate-spin' : ''}`} />
+                  <span>Fetch</span>
                 </button>
 
                 <button
@@ -2226,19 +2351,19 @@ export const GitPage: React.FC<GitPageProps> = ({
                     setCicdResult(null);
                     setIsCicdModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 text-purple-200 border border-purple-500/40 text-xs font-semibold cursor-pointer shrink-0"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors shrink-0"
                   title="Tự động thiết lập CI/CD triển khai ứng dụng lên server qua GitHub Actions"
                 >
-                  <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                  <Zap className="w-3.5 h-3.5 text-accent" />
                   <span>CI/CD Server</span>
                 </button>
               </div>
 
               {rateLimitInfo && (
-                <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#111827] border border-[#1E293B] text-xs font-mono text-slate-400 shrink-0">
-                  <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] border border-[#1e2332] text-xs font-mono text-slate-400 shrink-0">
+                  <Shield className="w-3 h-3 text-slate-400" />
                   <span>
-                    API Quota: <strong className="text-emerald-400">{rateLimitInfo.remaining}</strong> / {rateLimitInfo.limit}
+                    API Quota: <strong className="text-slate-200">{rateLimitInfo.remaining}</strong> / {rateLimitInfo.limit}
                   </span>
                 </div>
               )}
@@ -2246,87 +2371,96 @@ export const GitPage: React.FC<GitPageProps> = ({
 
             {/* Cloud Repos Grid */}
             {accounts.length === 0 ? (
-              <div className="py-20 text-center text-slate-500 text-xs border border-dashed border-[#1E293B] rounded-2xl flex flex-col items-center justify-center gap-2">
-                <Cloud className="w-12 h-12 text-slate-700 mb-1" />
+              <div className="py-16 text-center text-slate-500 text-xs border border-dashed border-[#1e2332] rounded-xl flex flex-col items-center justify-center gap-2">
+                <Cloud className="w-10 h-10 text-slate-600 mb-1 stroke-1" />
                 <span className="font-semibold text-slate-300">Chưa cấu hình tài khoản Git Provider</span>
                 <p className="text-slate-500 max-w-sm">
                   Vui lòng chuyển tới tab Cài đặt để thêm tài khoản GitHub, GitLab hoặc Gitea với Personal Access Token.
                 </p>
               </div>
             ) : loadingCloudRepos ? (
-              <div className="py-20 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-                <span>Đang kết nối API và tải danh sách kho lưu trữ Cloud...</span>
+              <div className="py-16 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
+                <span>Đang tải danh sách kho lưu trữ Cloud...</span>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {remoteRepos.map((repo) => (
                   <div
                     key={repo.id}
-                    className="p-4 rounded-xl bg-[#111827] border border-[#1E293B] flex flex-col justify-between hover:border-slate-700 transition-all group"
+                    className="p-3.5 rounded-lg bg-[#12151f] border border-[#1b202e] hover:border-[#283046] flex flex-col justify-between transition-all duration-150 group shadow-sm"
                   >
                     <div>
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <span className="font-bold text-xs text-slate-100 group-hover:text-blue-400 transition-colors truncate">
-                          {repo.name}
-                        </span>
-                        <span
-                          className={`px-1.5 py-0.2 rounded text-[10px] font-mono border ${
-                            repo.isPrivate
-                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                              : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                          }`}
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <a
+                          href={repo.htmlUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-semibold text-xs text-slate-200 group-hover:text-accent transition-colors truncate"
+                          title={repo.fullName || repo.name}
                         >
-                          {repo.isPrivate ? 'Riêng tư' : 'Công khai'}
+                          {repo.name}
+                        </a>
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.04] text-slate-400 border border-white/[0.08] flex items-center gap-1 shrink-0"
+                        >
+                          {repo.isPrivate ? (
+                            <>
+                              <Lock className="w-2.5 h-2.5 text-amber-400/80" />
+                              <span>Riêng tư</span>
+                            </>
+                          ) : (
+                            <>
+                              <Globe className="w-2.5 h-2.5 text-slate-500" />
+                              <span>Công khai</span>
+                            </>
+                          )}
                         </span>
                       </div>
 
-                      <p className="text-[11px] text-slate-400 line-clamp-2 mb-3 min-h-[32px]">
-                        {repo.description || 'Không có phần mô tả.'}
+                      <p className="text-[11px] text-slate-400 line-clamp-2 min-h-[32px] leading-relaxed">
+                        {repo.description || (
+                          <span className="text-slate-600 italic">Không có mô tả</span>
+                        )}
                       </p>
 
-                      <div className="flex items-center gap-3 text-[10px] text-slate-500 font-mono mb-3">
+                      <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono mt-2 mb-3">
                         {repo.language && (
                           <span className="flex items-center gap-1 text-slate-300">
-                            <span className="w-2 h-2 rounded-full bg-blue-400" />
+                            <span className="w-2 h-2 rounded-full bg-blue-500/80" />
                             {repo.language}
                           </span>
                         )}
-                        <span>⭐ {repo.starsCount}</span>
-                        <span>🔀 {repo.forksCount}</span>
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <Star className="w-3 h-3 text-slate-500" />
+                          <span>{repo.starsCount}</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <GitFork className="w-3 h-3 text-slate-500" />
+                          <span>{repo.forksCount}</span>
+                        </span>
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between">
-                      <a
-                        href={repo.htmlUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
-                        title="Mở trên trình duyệt"
+                    <div className="pt-2.5 border-t border-[#1a1f2c] flex items-center justify-between">
+                      {/* Primary Clone action */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCloneUrl(repo.cloneUrl);
+                          setCloneProjectName(repo.name);
+                          setCloneDestPath(`D:\\Projects\\${repo.name}`);
+                          setIsCloneModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-200 border border-[#212738] text-[11px] font-medium flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                        title="Sao chép kho lưu trữ về máy tính (Clone)"
                       >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>Mở web</span>
-                      </a>
+                        <DownloadCloud className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Clone</span>
+                      </button>
 
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            openCicdModalForRepo(
-                              activeRepoPath,
-                              repo.name,
-                              selectedAccountId,
-                              repo.fullName
-                            );
-                          }}
-                          className="px-2 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
-                          title="Tự động phân tích mã nguồn và thiết lập CI/CD cho repo này"
-                        >
-                          <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>CI/CD</span>
-                        </button>
-
+                      {/* Secondary actions */}
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => {
@@ -2337,32 +2471,43 @@ export const GitPage: React.FC<GitPageProps> = ({
                             setPushToRemoteResult(null);
                             setIsPushToRemoteModalOpen(true);
                           }}
-                          className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
-                          title="Đẩy mã nguồn từ máy tính lên kho GitHub này"
+                          className="p-1.5 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-white/[0.05] transition-colors cursor-pointer"
+                          title="Đẩy mã nguồn từ máy tính lên kho này"
                         >
-                          <UploadCloud className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Đẩy Code</span>
+                          <UploadCloud className="w-3.5 h-3.5" />
                         </button>
 
                         <button
                           type="button"
                           onClick={() => {
-                            setCloneUrl(repo.cloneUrl);
-                            setCloneProjectName(repo.name);
-                            setCloneDestPath(`D:\\Projects\\${repo.name}`);
-                            setIsCloneModalOpen(true);
+                            openCicdModalForRepo(
+                              activeRepoPath,
+                              repo.name,
+                              selectedAccountId,
+                              repo.fullName
+                            );
                           }}
-                          className="px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-medium flex items-center gap-1 cursor-pointer"
+                          className="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/[0.05] transition-colors cursor-pointer"
+                          title="Thiết lập CI/CD GitHub Actions"
                         >
-                          <DownloadCloud className="w-3.5 h-3.5" />
-                          <span>Clone</span>
+                          <Zap className="w-3.5 h-3.5" />
                         </button>
+
+                        <a
+                          href={repo.htmlUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] transition-colors"
+                          title="Mở trên trình duyệt web"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
                       </div>
                     </div>
                   </div>
                 ))}
                 {remoteRepos.length === 0 && (
-                  <div className="col-span-3 py-16 text-center text-slate-500 text-xs italic border border-dashed border-[#1E293B] rounded-xl">
+                  <div className="col-span-3 py-16 text-center text-slate-500 text-xs italic border border-dashed border-[#1e2332] rounded-xl">
                     Không tìm thấy kho nào trên tài khoản này. Nhấn 'Tạo Kho Mới' để bắt đầu.
                   </div>
                 )}
@@ -3843,6 +3988,181 @@ export const GitPage: React.FC<GitPageProps> = ({
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg cursor-pointer transition-colors disabled:opacity-50"
               >
                 {isOpeningFolder ? 'Đang mở...' : 'Mở Thư Mục Ngay'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 16. Modal: Quản Lý & Tự Động Sinh .gitignore */}
+      {isGitIgnoreModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150 max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-100">Quản Lý &amp; Tự Động Sinh Tệp .gitignore</h3>
+                    {gitIgnoreInfo?.exists ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold">
+                        Đã có tệp .gitignore
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-semibold">
+                        Chưa có .gitignore
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-mono truncate max-w-lg mt-0.5">
+                    {activeRepoPath}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGitIgnoreModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-[#1E293B] text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {isLoadingGitIgnore ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
+                <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
+                <span>Đang đọc và phân tích cấu hình .gitignore...</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3.5 overflow-y-auto flex-1 pr-1">
+                {/* 1. Auto-Recommendation Banner */}
+                {gitIgnoreInfo?.recommendedTemplate && (
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-amber-200">
+                      <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <span>
+                        Hệ thống nhận diện dự án phù hợp với mẫu <strong>{gitIgnoreInfo.recommendedTemplate}</strong> (.vs, bin, obj, dist, node_modules, logs).
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applyGitIgnoreTemplate(gitIgnoreInfo.recommendedTemplate)}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer transition-colors shadow-sm whitespace-nowrap flex items-center gap-1.5"
+                    >
+                      <Zap className="w-3.5 h-3.5 fill-current" />
+                      <span>Áp Dụng Mẫu Gợi Ý</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 2. Quick Presets Templates */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-300">Chọn mẫu cấu hình nhanh (1-Click Chèn):</span>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'FullStack', label: 'Full-Stack (.NET + Node + Win)', icon: '⚡' },
+                      { key: 'DotNet', label: '.NET / C# / VS', icon: '🔷' },
+                      { key: 'NodeJs', label: 'Node.js / React / Next / Vite', icon: '🟢' },
+                      { key: 'Python', label: 'Python / Venv / Pycache', icon: '🐍' },
+                      { key: 'Go', label: 'Golang / Binaries', icon: '🔵' },
+                      { key: 'Docker', label: 'Docker / Compose', icon: '🐳' },
+                      { key: 'OS_IDEs', label: 'Hệ điều hành & IDEs (.vs, .idea)', icon: '💻' },
+                    ].map((tpl) => (
+                      <button
+                        key={tpl.key}
+                        type="button"
+                        onClick={() => applyGitIgnoreTemplate(tpl.key)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] border border-[#1E293B] hover:border-amber-500/40 text-slate-300 text-xs cursor-pointer transition-colors"
+                      >
+                        <span>{tpl.icon}</span>
+                        <span>{tpl.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Common Quick Add Tokens */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-400">Thêm nhanh từng mẫu quy tắc:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['node_modules/', '.vs/', 'bin/', 'obj/', 'dist/', 'build/', '.env*', '*.log', 'Thumbs.db', '.DS_Store', '*.exe', '*.zip'].map((rule) => (
+                      <button
+                        key={rule}
+                        type="button"
+                        onClick={() => {
+                          if (!gitIgnoreContent.includes(rule)) {
+                            setGitIgnoreContent((prev) => (prev.trimEnd() ? prev.trimEnd() + '\n' + rule : rule));
+                            onShowToast(`Đã thêm ${rule}`, 'info');
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded bg-[#080C14] hover:bg-slate-800 border border-[#1E293B] text-[11px] font-mono text-slate-400 hover:text-amber-300 cursor-pointer"
+                      >
+                        + {rule}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Textarea Editor */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-300">Nội dung tệp .gitignore:</span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {gitIgnoreContent.split('\n').length} dòng | {gitIgnoreContent.length} ký tự
+                    </span>
+                  </div>
+                  <textarea
+                    value={gitIgnoreContent}
+                    onChange={(e) => setGitIgnoreContent(e.target.value)}
+                    placeholder="# Nhập các quy tắc bỏ qua tệp/thư mục (mỗi quy tắc một dòng)...&#10;node_modules/&#10;.vs/&#10;bin/&#10;obj/&#10;dist/"
+                    rows={12}
+                    spellCheck={false}
+                    className="w-full p-3 rounded-xl bg-[#080C14] border border-[#1E293B] text-slate-200 font-mono text-xs focus:outline-none focus:border-amber-500 leading-relaxed resize-y selection:bg-amber-500/30"
+                  />
+                </div>
+
+                {/* 5. Options */}
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={gitIgnoreAutoCommit}
+                    onChange={(e) => setGitIgnoreAutoCommit(e.target.checked)}
+                    className="accent-amber-500 rounded cursor-pointer"
+                  />
+                  <span>Tự động tạo Commit lưu tệp .gitignore vào Git ngay sau khi lưu</span>
+                </label>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1E293B]">
+              <button
+                type="button"
+                onClick={() => setIsGitIgnoreModalOpen(false)}
+                className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                Hủy
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveGitIgnore}
+                disabled={isSavingGitIgnore || isLoadingGitIgnore}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 cursor-pointer hover:brightness-110 transition-all disabled:opacity-50"
+              >
+                {isSavingGitIgnore ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Đang lưu .gitignore...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Lưu Tệp .gitignore Ngay</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

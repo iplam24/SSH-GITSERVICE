@@ -45,6 +45,9 @@ import {
   RepoTechInspectionResult,
   GithubActionSetupRequest,
   GithubActionSetupResult,
+  GitIgnoreInfo,
+  SaveGitIgnoreRequest,
+  AddToGitIgnoreRequest,
 } from '../types';
 
 const API_BASE = window.location.port === '5173' ? 'http://127.0.0.1:38420' : '';
@@ -224,6 +227,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  getGitIgnore: (repoPath: string) =>
+    req<GitIgnoreInfo>(`/api/git/gitignore?repoPath=${encodeURIComponent(repoPath)}`),
+  saveGitIgnore: (data: SaveGitIgnoreRequest) =>
+    req<{ success: boolean }>('/api/git/gitignore', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  addToGitIgnore: (data: AddToGitIgnoreRequest) =>
+    req<{ success: boolean }>('/api/git/gitignore/add', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getGitIgnoreTemplates: () =>
+    req<Record<string, string>>('/api/git/gitignore/templates'),
 
   // SSH
   getSshProfiles: () => req<SshProfile[]>('/api/ssh/profiles'),

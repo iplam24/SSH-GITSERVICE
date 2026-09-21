@@ -743,5 +743,74 @@ public class GitGlobalConfigTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public async Task GitService_GetGitIgnore_DetectsExistingAndPresets()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "test_repo_ignore_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), "{}");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, ".gitignore"), "node_modules/\ndist/\n");
+
+            var gitService = new GitService();
+            var info = await gitService.GetGitIgnoreAsync(tempDir);
+
+            Assert.True(info.Exists);
+            Assert.Contains("node_modules/", info.Content);
+            Assert.Contains("NodeJs", info.DetectedPresets);
+            Assert.Equal("NodeJs", info.RecommendedTemplate);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task GitService_SaveAndAddToGitIgnore_WorksProperly()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "test_repo_add_ignore_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var gitService = new GitService();
+            var saved = await gitService.SaveGitIgnoreAsync(new SaveGitIgnoreRequest
+            {
+                RepoPath = tempDir,
+                Content = "# Initial ignore\n.vs/\n"
+            });
+            Assert.True(saved);
+
+            var added = await gitService.AddToGitIgnoreAsync(new AddToGitIgnoreRequest
+            {
+                RepoPath = tempDir,
+                Pattern = "*.log"
+            });
+            Assert.True(added);
+
+            var info = await gitService.GetGitIgnoreAsync(tempDir);
+            Assert.Contains(".vs/", info.Content);
+            Assert.Contains("*.log", info.Content);
+
+            // Adding same pattern again should be idempotent
+            await gitService.AddToGitIgnoreAsync(new AddToGitIgnoreRequest
+            {
+                RepoPath = tempDir,
+                Pattern = "*.log"
+            });
+
+            var templates = await gitService.GetGitIgnoreTemplatesAsync();
+            Assert.True(templates.ContainsKey("FullStack"));
+            Assert.True(templates.ContainsKey("NodeJs"));
+            Assert.True(templates.ContainsKey("DotNet"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
+
 

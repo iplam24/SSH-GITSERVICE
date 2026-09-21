@@ -364,3 +364,27 @@ public class GithubActionSetupResult
     public List<string> GeneratedFiles { get; set; } = new();
     public string Message { get; set; } = string.Empty;
 }
+
+public class GitIgnoreInfo
+{
+    public bool Exists { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public List<string> DetectedPresets { get; set; } = new();
+    public string RecommendedTemplate { get; set; } = string.Empty;
+}
+
+public class SaveGitIgnoreRequest
+{
+    public string RepoPath { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public bool AutoCommit { get; set; } = false;
+    public string? CommitMessage { get; set; }
+}
+
+public class AddToGitIgnoreRequest
+{
+    public string RepoPath { get; set; } = string.Empty;
+    public string Pattern { get; set; } = string.Empty;
+    public bool AutoCommit { get; set; } = false;
+}

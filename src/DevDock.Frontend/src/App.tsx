@@ -41,7 +41,7 @@ export const App: React.FC = () => {
   const [aiProviders, setAiProviders] = useState<AiProviderConfig[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
     theme: 'dark',
-    accentColor: 'emerald',
+    accentColor: 'blue',
     terminalFontSize: 13,
     terminalFontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
     defaultShell: 'PowerShell',
@@ -282,7 +282,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#090D16] text-slate-100 overflow-hidden select-none font-sans">
+    <div className="h-screen w-screen flex flex-col bg-[#0c0d12] text-slate-100 overflow-hidden select-none font-sans">
       {/* Windows 11 Fluent Title Bar */}
       <TitleBar
         metrics={metrics}
@@ -306,7 +306,7 @@ export const App: React.FC = () => {
         />
 
         {/* Dynamic Route Viewport */}
-        <main className="flex-1 flex flex-col overflow-hidden relative bg-[#090D16]">
+        <main className="flex-1 flex flex-col overflow-hidden relative bg-[#0c0d12]">
           {currentRoute === 'home' && (
             <HomePage
               metrics={metrics}

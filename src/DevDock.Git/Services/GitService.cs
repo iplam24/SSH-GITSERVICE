@@ -1538,4 +1538,346 @@ WantedBy=multi-user.target
 
         return sb.ToString();
     }
+
+    public async Task<GitIgnoreInfo> GetGitIgnoreAsync(string repoPath)
+    {
+        var info = new GitIgnoreInfo
+        {
+            FilePath = Path.Combine(repoPath, ".gitignore"),
+            Exists = false,
+            Content = string.Empty
+        };
+
+        if (File.Exists(info.FilePath))
+        {
+            info.Exists = true;
+            try
+            {
+                info.Content = await File.ReadAllTextAsync(info.FilePath, Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        // Auto-detect recommended presets based on workspace files
+        if (Directory.Exists(repoPath))
+        {
+            var presets = new List<string>();
+            var hasPackageJson = File.Exists(Path.Combine(repoPath, "package.json"));
+            var hasDotNet = Directory.GetFiles(repoPath, "*.sln").Length > 0 || Directory.GetFiles(repoPath, "*.csproj", SearchOption.AllDirectories).Length > 0;
+            var hasPython = File.Exists(Path.Combine(repoPath, "requirements.txt")) || File.Exists(Path.Combine(repoPath, "pyproject.toml"));
+            var hasGo = File.Exists(Path.Combine(repoPath, "go.mod"));
+            var hasDocker = File.Exists(Path.Combine(repoPath, "Dockerfile")) || File.Exists(Path.Combine(repoPath, "docker-compose.yml"));
+
+            if (hasDotNet && hasPackageJson) presets.Add("FullStack");
+            if (hasDotNet) presets.Add("DotNet");
+            if (hasPackageJson) presets.Add("NodeJs");
+            if (hasPython) presets.Add("Python");
+            if (hasGo) presets.Add("Go");
+            if (hasDocker) presets.Add("Docker");
+            presets.Add("OS_IDEs");
+
+            info.DetectedPresets = presets;
+
+            if (hasDotNet && hasPackageJson) info.RecommendedTemplate = "FullStack";
+            else if (hasDotNet) info.RecommendedTemplate = "DotNet";
+            else if (hasPackageJson) info.RecommendedTemplate = "NodeJs";
+            else if (hasPython) info.RecommendedTemplate = "Python";
+            else if (hasGo) info.RecommendedTemplate = "Go";
+            else info.RecommendedTemplate = "OS_IDEs";
+        }
+
+        return info;
+    }
+
+    public async Task<bool> SaveGitIgnoreAsync(SaveGitIgnoreRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RepoPath)) return false;
+        if (!Directory.Exists(request.RepoPath)) Directory.CreateDirectory(request.RepoPath);
+
+        var filePath = Path.Combine(request.RepoPath, ".gitignore");
+        await File.WriteAllTextAsync(filePath, request.Content ?? string.Empty, Encoding.UTF8);
+
+        if (request.AutoCommit && Directory.Exists(Path.Combine(request.RepoPath, ".git")))
+        {
+            try
+            {
+                await RunGitAsync(request.RepoPath, "add .gitignore");
+                var msg = string.IsNullOrWhiteSpace(request.CommitMessage) ? "Update .gitignore" : request.CommitMessage;
+                await RunGitAsync(request.RepoPath, $"commit -m \"{msg.Replace("\"", "\\\"")}\"");
+            }
+            catch { }
+        }
+
+        return true;
+    }
+
+    public async Task<bool> AddToGitIgnoreAsync(AddToGitIgnoreRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RepoPath) || string.IsNullOrWhiteSpace(request.Pattern)) return false;
+        if (!Directory.Exists(request.RepoPath)) Directory.CreateDirectory(request.RepoPath);
+
+        var pattern = request.Pattern.Trim();
+        var filePath = Path.Combine(request.RepoPath, ".gitignore");
+        var content = File.Exists(filePath) ? await File.ReadAllTextAsync(filePath, Encoding.UTF8) : string.Empty;
+
+        var existingLines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                                   .Select(l => l.Trim())
+                                   .ToHashSet();
+
+        if (existingLines.Contains(pattern)) return true; // Already present
+
+        var newContent = content.TrimEnd();
+        if (string.IsNullOrWhiteSpace(newContent))
+        {
+            newContent = pattern + Environment.NewLine;
+        }
+        else
+        {
+            newContent += Environment.NewLine + pattern + Environment.NewLine;
+        }
+
+        await File.WriteAllTextAsync(filePath, newContent, Encoding.UTF8);
+
+        if (request.AutoCommit && Directory.Exists(Path.Combine(request.RepoPath, ".git")))
+        {
+            try
+            {
+                await RunGitAsync(request.RepoPath, "add .gitignore");
+                await RunGitAsync(request.RepoPath, $"commit -m \"Add {pattern} to .gitignore\"");
+            }
+            catch { }
+        }
+
+        return true;
+    }
+
+    public Task<Dictionary<string, string>> GetGitIgnoreTemplatesAsync()
+    {
+        var templates = new Dictionary<string, string>
+        {
+            ["FullStack"] = @"# DevDock Full-Stack .gitignore (.NET + Node/Vite + Windows)
+
+# Build & Publish outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+dist/
+build/
+out/
+publish/
+
+# Visual Studio & IDEs
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Node & Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.next/
+.nuxt/
+.output/
+
+# Logs & Temporary
+*.log
+*.tmp
+*.bak
+*.swp
+Thumbs.db
+.DS_Store
+
+# Packaged binaries & installers
+*.nupkg
+*.snupkg
+*.exe
+*.msi
+*.zip
+*.7z
+
+# Secrets & Environment
+.env
+.env.local
+.env.*.local
+",
+            ["NodeJs"] = @"# Node.js & Modern Frontend (React, Vite, Next.js, Vue)
+node_modules/
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.cache/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment & Local Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+.idea/
+",
+            ["DotNet"] = @"# .NET & Visual Studio / C#
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+publish/
+
+# Visual Studio cache & user settings
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.userprefs
+
+# Packages
+*.nupkg
+*.snupkg
+packages/
+
+# Rider / JetBrains
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
+",
+            ["Python"] = @"# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# Environment variables
+.env
+.env.local
+
+# Testing & Type checking
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+",
+            ["Go"] = @"# Golang
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Build outputs
+bin/
+dist/
+",
+            ["Docker"] = @"# Docker & Container ignores
+.docker/
+*.tar
+*.tar.gz
+docker-compose.override.yml
+.env
+",
+            ["OS_IDEs"] = @"# OS & General IDE Files
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains (IntelliJ, Rider, WebStorm)
+.idea/
+*.iws
+*.iml
+"
+        };
+
+        return Task.FromResult(templates);
+    }
 }
+
