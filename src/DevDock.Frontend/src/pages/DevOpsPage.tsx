@@ -33,6 +33,7 @@ import {
   DotEnvKeyDiff,
 } from '../types';
 import { api } from '../services/api';
+import { useConfirm } from '../context/ConfirmContext';
 
 type DevOpsTab = 'ports' | 'hosts' | 'env';
 
@@ -50,7 +51,7 @@ export const DevOpsPage: React.FC<DevOpsPageProps> = ({
   const [activeTab, setActiveTab] = useState<DevOpsTab>(initialTab);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12] w-full h-full min-h-0">
       {/* Top Header & Tab Navigation */}
       <div className="border-b border-[#1a1e2a] bg-[#090b10] px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 flex-shrink-0 select-none">
         <div>
@@ -107,7 +108,7 @@ export const DevOpsPage: React.FC<DevOpsPageProps> = ({
       </div>
 
       {/* Main Tab Content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
         {activeTab === 'ports' && <PortInspectorTab onShowToast={onShowToast} />}
         {activeTab === 'hosts' && <HostsManagerTab onShowToast={onShowToast} />}
         {activeTab === 'env' && <EnvironmentStudioTab onShowToast={onShowToast} />}
@@ -183,7 +184,7 @@ const PortInspectorTab: React.FC<{
   }, [ports]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5">
+    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
       {/* Top Bar: Search, Quick Filters & Metrics */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Search Box */}
@@ -260,8 +261,8 @@ const PortInspectorTab: React.FC<{
       </div>
 
       {/* Ports Table */}
-      <div className="flex-1 overflow-hidden rounded-xl border border-[#1a1e2a] bg-[#090b10] flex flex-col">
-        <div className="overflow-y-auto flex-1">
+      <div className="flex-1 overflow-hidden rounded-xl border border-[#1a1e2a] bg-[#090b10] flex flex-col min-h-0">
+        <div className="overflow-y-auto flex-1 min-h-0 pr-1">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#0e111a] text-slate-400 font-mono text-[11px] uppercase sticky top-0 z-10 border-b border-[#1a1e2a]">
               <tr>
@@ -448,6 +449,7 @@ const PortInspectorTab: React.FC<{
 const HostsManagerTab: React.FC<{
   onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }> = ({ onShowToast }) => {
+  const confirm = useConfirm();
   const [entries, setEntries] = useState<HostEntryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -500,7 +502,13 @@ const HostsManagerTab: React.FC<{
     const target = entries.find((e) => e.id === id);
     if (!target) return;
     if (target.isSystemDefault) {
-      if (!confirm('Đây là bản ghi hệ thống (localhost). Bạn có chắc muốn xóa không?')) return;
+      const ok = await confirm({
+        title: 'Xóa Bản Ghi Hosts Hệ Thống',
+        message: 'Đây là bản ghi hệ thống (localhost). Bạn có chắc muốn xóa không?',
+        confirmText: 'Xóa Bản Ghi',
+        type: 'warning',
+      });
+      if (!ok) return;
     }
 
     const updated = entries.filter((e) => e.id !== id);
@@ -600,7 +608,7 @@ const HostsManagerTab: React.FC<{
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5">
+    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
       {/* Informational Banner */}
       <div className="p-3.5 rounded-xl bg-blue-950/30 border border-blue-800/30 text-xs text-slate-300 flex items-start gap-3">
         <Globe className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
@@ -672,8 +680,8 @@ const HostsManagerTab: React.FC<{
       </div>
 
       {/* Hosts Table */}
-      <div className="flex-1 overflow-hidden rounded-xl border border-[#1a1e2a] bg-[#090b10] flex flex-col">
-        <div className="overflow-y-auto flex-1">
+      <div className="flex-1 overflow-hidden rounded-xl border border-[#1a1e2a] bg-[#090b10] flex flex-col min-h-0">
+        <div className="overflow-y-auto flex-1 min-h-0 pr-1">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#0e111a] text-slate-400 font-mono text-[11px] uppercase sticky top-0 z-10 border-b border-[#1a1e2a]">
               <tr>
@@ -957,7 +965,7 @@ const EnvironmentStudioTab: React.FC<{
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5">
+    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
       {/* Sub-tab switcher */}
       <div className="flex items-center justify-between border-b border-[#1a1e2a] pb-3">
         <div className="flex items-center gap-2">
@@ -1008,7 +1016,7 @@ const EnvironmentStudioTab: React.FC<{
 
       {/* View 1: Windows System Variables & Dead PATH Inspector */}
       {subView === 'system' && (
-        <div className="flex-1 flex flex-col overflow-hidden gap-4">
+        <div className="flex-1 flex flex-col overflow-hidden gap-4 min-h-0">
           {/* Controls: Target Filters & Search */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="relative flex-1 max-w-md">
@@ -1042,7 +1050,7 @@ const EnvironmentStudioTab: React.FC<{
           </div>
 
           {/* List of Variables */}
-          <div className="flex-1 overflow-y-auto rounded-xl border border-[#1a1e2a] bg-[#090b10] p-3 flex flex-col gap-2">
+          <div className="flex-1 overflow-y-auto rounded-xl border border-[#1a1e2a] bg-[#090b10] p-3 flex flex-col gap-2 min-h-0 pr-1">
             {loading && envVars.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-xs">
                 <RefreshCw className="w-6 h-6 text-accent animate-spin mx-auto mb-2" />
@@ -1184,8 +1192,8 @@ const EnvironmentStudioTab: React.FC<{
 
       {/* View 2: .env Studio & Diff */}
       {subView === 'dotenv' && (
-        <div className="flex-1 flex flex-col overflow-hidden gap-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-y-auto gap-4 min-h-0 pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-h-[340px] flex-shrink-0">
             {/* Current .env Input */}
             <div className="flex flex-col gap-1.5 overflow-hidden">
               <div className="flex items-center justify-between text-xs">

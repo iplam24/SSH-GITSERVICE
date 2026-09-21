@@ -106,19 +106,28 @@
 .shadow-glow-accent { box-shadow: var(--accent-glow); }
 
 /* Custom sleek scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3b4564 transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #232838;
+  background: #3b4564;
   border-radius: 9999px;
+  border: 1px solid rgba(12, 13, 18, 0.6);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #333a50;
+  background: #505c84;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Make inputs and code selectable */

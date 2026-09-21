@@ -786,3 +786,57 @@ export interface DotEnvCompareResult {
   totalKeysCount: number;
 }
 
+export interface SyncGithubSecretsRequest {
+  accountId: string;
+  remoteRepoFullName: string;
+  secrets: Record<string, string>;
+}
+
+export interface SyncGithubSecretsResult {
+  success: boolean;
+  syncedSecrets: string[];
+  failedSecrets: string[];
+  message: string;
+}
+
+export interface GithubReleaseAssetItem {
+  id: number;
+  name: string;
+  size: number;
+  downloadCount: number;
+  browserDownloadUrl: string;
+}
+
+export interface GithubReleaseItem {
+  id: number;
+  tagName: string;
+  name: string;
+  body: string;
+  draft: boolean;
+  prerelease: boolean;
+  htmlUrl: string;
+  createdAt: string;
+  assets: GithubReleaseAssetItem[];
+}
+
+export interface CreateGithubReleaseRequest {
+  accountId?: string;
+  repoPath?: string;
+  remoteRepoFullName?: string;
+  tagName: string;
+  targetBranch?: string;
+  name?: string;
+  body?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  generateReleaseNotes?: boolean;
+  triggerCiCdWorkflow?: boolean;
+}
+
+export interface CreateGithubReleaseResult {
+  success: boolean;
+  releaseUrl?: string;
+  tagName?: string;
+  message: string;
+}
+

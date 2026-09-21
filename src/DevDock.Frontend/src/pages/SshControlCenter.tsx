@@ -45,6 +45,7 @@ import {
   SshCommandResult,
 } from '../types';
 import { api } from '../services/api';
+import { useConfirm } from '../context/ConfirmContext';
 
 interface SshControlCenterProps {
   profile: SshProfile;
@@ -63,6 +64,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
   onOpenSftp,
   onShowToast,
 }) => {
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<SubTabType>('overview');
 
   // Loading states
@@ -123,7 +125,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
   // Snippets & Terminal Runner
   const [savedSnippets, setSavedSnippets] = useState<SshSavedSnippet[]>([]);
   const [customCommand, setCustomCommand] = useState('');
-  const [useSudo, setUseSudo] = useState(false);
+  const [useSudo, setUseSudo] = useState(profile.username !== 'root');
   const [commandHistory, setCommandHistory] = useState<{ cmd: string; result: SshCommandResult; time: string }[]>([]);
   const [newSnippetTitle, setNewSnippetTitle] = useState('');
 
@@ -258,7 +260,13 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
 
   const handleKillPortProcess = async (portItem: SshListeningPortItem) => {
     if (!portItem.pid) return;
-    if (!confirm(`Bạn có chắc muốn đóng tiến trình '${portItem.processName}' (PID: ${portItem.pid})?`)) return;
+    const ok = await confirm({
+      title: 'Đóng Tiến Trình Máy Chủ',
+      message: `Bạn có chắc muốn đóng tiến trình '${portItem.processName}' (PID: ${portItem.pid})?`,
+      confirmText: 'Đóng Tiến Trình',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await api.killSshPortProcess(profile.id, portItem.pid, true);
       if (res.success) {
@@ -413,7 +421,13 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
   };
 
   const handleDeleteNginxSite = async (site: SshNginxSiteItem) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa cấu hình vhost '${site.name}' khỏi máy chủ?`)) return;
+    const ok = await confirm({
+      title: 'Xóa Cấu Hình VHost Nginx',
+      message: `Bạn có chắc chắn muốn xóa cấu hình vhost '${site.name}' khỏi máy chủ?`,
+      confirmText: 'Xóa VHost',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await api.deleteSshNginxSite(profile.id, site.name);
       if (res.success) {
@@ -754,17 +768,19 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
   // =========================================================================
   // SNIPPETS & COMMAND RUNNER
   // =========================================================================
-  const handleExecuteCommand = async (cmdToRun?: string) => {
+  const handleExecuteCommand = async (cmdToRun?: string, forceElevated?: boolean, timeout = 60) => {
     const cmd = cmdToRun || customCommand;
     if (!cmd.trim()) return;
     setIsExecutingCommand(true);
     const timeStr = new Date().toLocaleTimeString();
-    const finalCmd = useSudo && !cmd.trim().startsWith('sudo ') ? `sudo ${cmd.trim()}` : cmd.trim();
+    const shouldElevate = forceElevated ?? (useSudo || profile.username === 'root');
+    const finalCmd = cmd.trim();
+
     try {
-      const res = await api.sshExecCommand(profile.id, finalCmd);
+      const res = await api.sshExecCommand(profile.id, finalCmd, timeout, shouldElevate);
       setCommandHistory((prev) => [
         {
-          cmd: finalCmd,
+          cmd: (shouldElevate && profile.username !== 'root' ? '[sudo] ' : '') + finalCmd,
           result: res,
           time: timeStr,
         },
@@ -773,7 +789,9 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       if (res.exitCode === 0) {
         onShowToast(`Hoàn tất lệnh trong ${res.executionTimeMs}ms`, 'success');
       } else {
-        onShowToast(`Lệnh kết thúc với exit code ${res.exitCode}`, 'error');
+        const firstErr = res.error ? res.error.split('\n').filter(Boolean)[0] : '';
+        const msg = firstErr ? `Lỗi: ${firstErr.slice(0, 80)}...` : `Lệnh kết thúc với exit code ${res.exitCode}`;
+        onShowToast(msg, 'error');
       }
     } catch (err: any) {
       onShowToast(err.message || 'Lỗi thực thi lệnh', 'error');
@@ -805,42 +823,50 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
     {
       title: 'Cài Nginx Web Server',
       desc: 'Cài đặt và bật Nginx dịch vụ tự khởi động cùng OS',
-      cmd: 'apt update && apt install -y nginx && systemctl enable --now nginx',
+      cmd: 'apt-get update -y && apt-get install -y nginx && systemctl enable --now nginx',
+      timeout: 180,
     },
     {
       title: 'Cài Node.js LTS (NodeSource)',
       desc: 'Cài phiên bản Node.js LTS v20.x và npm',
-      cmd: 'curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt install -y nodejs',
+      cmd: 'curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs',
+      timeout: 180,
     },
     {
       title: 'Cài Docker & Compose',
       desc: 'Cài Docker engine và tiện ích compose',
       cmd: 'curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh',
+      timeout: 240,
     },
     {
       title: 'Cài Certbot & Git',
       desc: 'Cài Git và công cụ cấp chứng chỉ SSL Certbot',
-      cmd: 'apt update && apt install -y git certbot python3-certbot-nginx',
+      cmd: 'apt-get update -y && apt-get install -y git certbot python3-certbot-nginx',
+      timeout: 180,
     },
     {
       title: 'Cập nhật hệ thống OS',
       desc: 'Quét và nâng cấp các gói bảo mật mới nhất',
-      cmd: 'apt update && apt upgrade -y',
+      cmd: 'apt-get update -y && apt-get upgrade -y',
+      timeout: 300,
     },
     {
       title: 'Dọn dẹp rác & Cache',
       desc: 'Xóa gói dư thừa và dọn log systemd cũ',
-      cmd: 'apt autoremove -y && journalctl --vacuum-time=3d',
+      cmd: 'apt-get autoremove -y && apt-get clean && journalctl --vacuum-time=3d',
+      timeout: 90,
     },
     {
       title: 'Khởi động lại Nginx',
       desc: 'Reload hoặc restart lại nginx an toàn',
       cmd: 'nginx -t && systemctl reload nginx',
+      timeout: 30,
     },
     {
       title: 'Cấu hình UFW Tường Lửa',
       desc: 'Cho phép port 22 (SSH), 80 (HTTP), 443 (HTTPS)',
       cmd: 'ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable',
+      timeout: 30,
     },
   ];
 
@@ -871,7 +897,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       : 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5">
+    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
       {/* Top Navigation & Server Summary */}
       <div className="flex flex-col gap-4 pb-4 border-b border-border">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -980,7 +1006,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* TAB 1: OVERVIEW */}
       {/* ========================================================================= */}
       {activeTab === 'overview' && (
-        <div className="flex-1 overflow-y-auto flex flex-col gap-6">
+        <div className="flex-1 overflow-y-auto flex flex-col gap-6 min-h-0 pr-1">
           {isLoadingOverview && !overview ? (
             <div className="py-20 flex flex-col items-center justify-center text-text-muted gap-2">
               <RefreshCw className="w-6 h-6 animate-spin text-accent" />
@@ -1160,7 +1186,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* TAB 2: PORTS & PROCESSES */}
       {/* ========================================================================= */}
       {activeTab === 'ports' && (
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+        <div className="flex-1 overflow-hidden flex flex-col gap-4 min-h-0">
           {/* Header Controls */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -1193,7 +1219,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
           </div>
 
           {/* Listening Ports Table */}
-          <div className="border border-border rounded-xl bg-surface overflow-hidden flex flex-col max-h-[42%]">
+          <div className="border border-border rounded-xl bg-surface overflow-hidden flex flex-col max-h-[42%] min-h-0">
             <div className="px-4 py-2.5 bg-surface-hover/50 border-b border-border flex items-center justify-between">
               <div className="text-xs font-bold text-text flex items-center gap-2">
                 <Activity className="w-4 h-4 text-accent" />
@@ -1202,7 +1228,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
               <span className="text-[11px] text-text-muted font-mono">ss -tulpn</span>
             </div>
 
-            <div className="overflow-y-auto flex-1">
+            <div className="overflow-y-auto flex-1 min-h-0 pr-1">
               <table className="w-full text-left border-collapse font-mono text-xs">
                 <thead>
                   <tr className="border-b border-border/60 text-text-muted text-[11px] bg-surface/80 sticky top-0">
@@ -1280,7 +1306,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
           </div>
 
           {/* Process Manager Section */}
-          <div className="border border-border rounded-xl bg-surface overflow-hidden flex-1 flex flex-col">
+          <div className="border border-border rounded-xl bg-surface overflow-hidden flex-1 flex flex-col min-h-0">
             <div className="px-4 py-2.5 bg-surface-hover/50 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-text flex items-center gap-2">
@@ -1348,7 +1374,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
               </div>
             </div>
 
-            <div className="overflow-y-auto flex-1">
+            <div className="overflow-y-auto flex-1 min-h-0 pr-1">
               <table className="w-full text-left border-collapse font-mono text-xs">
                 <thead>
                   <tr className="border-b border-border/60 text-text-muted text-[11px] bg-surface/80 sticky top-0">
@@ -1444,7 +1470,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* TAB 3: NGINX VIRTUAL HOSTS */}
       {/* ========================================================================= */}
       {activeTab === 'nginx' && (
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+        <div className="flex-1 overflow-hidden flex flex-col gap-4 min-h-0">
           {/* Nginx Banner & Controls */}
           <div className="bg-surface border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -1527,7 +1553,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0 pr-1">
             {filteredSites.length === 0 ? (
               <div className="py-20 text-center text-text-muted flex flex-col items-center justify-center">
                 <Globe className="w-12 h-12 text-border mb-3 stroke-1" />
@@ -1651,7 +1677,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* TAB 4: DOMAINS & CERTBOT SSL */}
       {/* ========================================================================= */}
       {activeTab === 'domains' && (
-        <div className="flex-1 overflow-hidden flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto flex flex-col gap-5 min-h-0 pr-1">
           {/* Sub-section 1: Domain DNS Health Check */}
           <div className="border border-border rounded-xl bg-surface p-4 flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1882,7 +1908,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* TAB 5: GIT SERVER DEPLOYMENTS */}
       {/* ========================================================================= */}
       {activeTab === 'git' && (
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+        <div className="flex-1 overflow-hidden flex flex-col gap-4 min-h-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-text flex items-center gap-2">
@@ -1908,14 +1934,14 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
                 onClick={() => setIsCloneModalOpen(true)}
                 className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>+ Clone Repository Mới</span>
               </button>
             </div>
           </div>
 
           {/* Git Deployments List */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0 pr-1">
             {gitDeployments.length === 0 ? (
               <div className="py-20 text-center text-text-muted flex flex-col items-center justify-center">
                 <GitBranch className="w-12 h-12 text-border mb-3 stroke-1" />
@@ -2020,7 +2046,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* TAB 6: SNIPPETS & SYSADMIN QUICK RUNNER */}
       {/* ========================================================================= */}
       {activeTab === 'snippets' && (
-        <div className="flex-1 overflow-hidden flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto flex flex-col gap-5 min-h-0 pr-1">
           {/* Preset Buttons Grid */}
           <div className="border border-border rounded-xl bg-surface p-4 flex flex-col gap-3">
             <h3 className="text-xs font-bold text-text flex items-center gap-2">
@@ -2039,7 +2065,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleExecuteCommand(ps.cmd)}
+                    onClick={() => handleExecuteCommand(ps.cmd, true, ps.timeout || 180)}
                     disabled={isExecutingCommand}
                     className="w-full py-1.5 rounded bg-accent-bg hover:bg-accent-bg-hover text-accent-light text-xs font-semibold border border-accent-border transition-colors cursor-pointer text-center"
                   >
@@ -2151,9 +2177,19 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
                       </div>
                       <span>{item.time} ({item.result.executionTimeMs}ms)</span>
                     </div>
-                    <pre className="text-text whitespace-pre-wrap select-text text-[11px] max-h-60 overflow-y-auto">
-                      {item.result.output || '(Lệnh hoàn tất không có output)'}
-                    </pre>
+                    {item.result.output && (
+                      <pre className="text-text whitespace-pre-wrap select-text text-[11px] max-h-60 overflow-y-auto font-mono">
+                        {item.result.output}
+                      </pre>
+                    )}
+                    {item.result.error && (
+                      <pre className="text-rose-400 whitespace-pre-wrap select-text text-[11px] max-h-60 overflow-y-auto font-mono bg-rose-950/20 p-2 rounded border border-rose-500/20">
+                        {item.result.error}
+                      </pre>
+                    )}
+                    {!item.result.output && !item.result.error && (
+                      <span className="text-text-muted italic text-[11px]">(Lệnh hoàn tất không có output)</span>
+                    )}
                   </div>
                 ))
               )}

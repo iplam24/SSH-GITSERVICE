@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { SshProfile, SshAuthType, SshConnectionTestResult, RemoteFileItem, RemoteFileContent } from '../types';
 import { api } from '../services/api';
+import { useConfirm } from '../context/ConfirmContext';
 import { SshControlCenter } from './SshControlCenter';
 
 interface SshPageProps {
@@ -47,6 +48,7 @@ export const SshPage: React.FC<SshPageProps> = ({
   onConnectTerminal,
   onShowToast,
 }) => {
+  const confirm = useConfirm();
   // Navigation View: 'profiles' (Server Cards), 'manage' (Remote Control Center), or 'sftp' (SFTP Remote File Explorer)
   const [activeView, setActiveView] = useState<'profiles' | 'manage' | 'sftp'>('profiles');
   const [selectedManageProfile, setSelectedManageProfile] = useState<SshProfile | null>(null);
@@ -144,7 +146,13 @@ export const SshPage: React.FC<SshPageProps> = ({
   };
 
   const handleDeleteProfile = async (p: SshProfile) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa kết nối SSH '${p.name}'?`)) return;
+    const ok = await confirm({
+      title: 'Xóa Kết Nối SSH',
+      message: `Bạn có chắc chắn muốn xóa kết nối SSH '${p.name}'?`,
+      confirmText: 'Xóa Kết Nối',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.deleteSshProfile(p.id);
       if (selectedSftpProfile?.id === p.id) {
@@ -251,9 +259,13 @@ export const SshPage: React.FC<SshPageProps> = ({
   const handleDeleteRemoteItem = async (item: RemoteFileItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!selectedSftpProfile) return;
-    if (!confirm(`Bạn có chắc muốn xóa ${item.isDirectory ? 'thư mục' : 'tệp'} '${item.name}' trên máy chủ?`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: item.isDirectory ? 'Xóa Thư Mục Từ Xa' : 'Xóa Tệp Từ Xa',
+      message: `Bạn có chắc muốn xóa ${item.isDirectory ? 'thư mục' : 'tệp'} '${item.name}' trên máy chủ?`,
+      confirmText: 'Xóa Vĩnh Viễn',
+      type: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const res = await api.sftpDelete({
@@ -360,7 +372,7 @@ export const SshPage: React.FC<SshPageProps> = ({
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5">
+    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
       {/* Top Header & View Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#1E293B]">
         <div>
@@ -437,9 +449,9 @@ export const SshPage: React.FC<SshPageProps> = ({
 
       {/* ==================== VIEW 1: SERVER PROFILES CARDS ==================== */}
       {activeView === 'profiles' && (
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-          <div className="flex items-center justify-between gap-3">
-            <div className="relative w-72">
+        <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="relative max-w-xs w-full">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
@@ -449,12 +461,12 @@ export const SshPage: React.FC<SshPageProps> = ({
                 className="w-full bg-[#111827] border border-[#1E293B] rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent"
               />
             </div>
-            <span className="text-xs text-slate-500 font-mono">
+            <span className="text-xs text-slate-500 font-mono shrink-0">
               Tổng số máy chủ: {filteredProfiles.length}
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0 pr-1">
             {filteredProfiles.length === 0 ? (
               <div className="py-20 text-center text-slate-500 flex flex-col items-center justify-center">
                 <Server className="w-12 h-12 text-slate-700 mb-3 stroke-1" />
@@ -497,8 +509,8 @@ export const SshPage: React.FC<SshPageProps> = ({
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
+                    <div className="pt-3 border-t border-[#1E293B] flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
                         <button
                           type="button"
                           onClick={() => onConnectTerminal(p)}
@@ -538,7 +550,7 @@ export const SshPage: React.FC<SshPageProps> = ({
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-1 text-slate-400 shrink-0">
+                      <div className="flex items-center gap-1 text-slate-400 shrink-0 ml-auto">
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(p)}
@@ -580,7 +592,7 @@ export const SshPage: React.FC<SshPageProps> = ({
 
       {/* ==================== VIEW 3: SFTP REMOTE FILE EXPLORER ==================== */}
       {activeView === 'sftp' && (
-        <div className="flex-1 flex flex-col gap-3.5 overflow-hidden">
+        <div className="flex-1 flex flex-col gap-3.5 overflow-hidden min-h-0">
           {/* SFTP Top Controls Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[#0D1322] border border-[#1E2A44]">
             {/* Server Selector */}
@@ -703,7 +715,7 @@ export const SshPage: React.FC<SshPageProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="relative w-48">
+              <div className="relative max-w-[180px] w-full">
                 <Search className="w-3 h-3 absolute left-2.5 top-2 text-slate-500" />
                 <input
                   type="text"
@@ -740,7 +752,7 @@ export const SshPage: React.FC<SshPageProps> = ({
                 handleUploadFileList(e.dataTransfer.files);
               }
             }}
-            className={`flex-1 rounded-xl bg-[#090E1A] border overflow-hidden flex flex-col relative transition-all ${
+            className={`flex-1 rounded-xl bg-[#090E1A] border overflow-hidden flex flex-col relative transition-all min-h-0 ${
               isDraggingOver
                 ? 'border-blue-500 bg-blue-950/20'
                 : 'border-[#1A2438]'
@@ -779,14 +791,14 @@ export const SshPage: React.FC<SshPageProps> = ({
             )}
 
             {/* File Table */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 bg-[#0C1220] border-b border-[#1A2438] text-[11px] font-mono text-slate-400 select-none z-10">
                   <tr>
                     <th className="py-2.5 px-4 font-semibold">Tên Tệp / Thư Mục</th>
-                    <th className="py-2.5 px-4 font-semibold w-28">Kích Thước</th>
-                    <th className="py-2.5 px-4 font-semibold w-32">Quyền Hạn</th>
-                    <th className="py-2.5 px-4 font-semibold w-40">Thời Gian Sửa</th>
+                    <th className="py-2.5 px-4 font-semibold w-28 hidden sm:table-cell">Kích Thước</th>
+                    <th className="py-2.5 px-4 font-semibold w-32 hidden md:table-cell">Quyền Hạn</th>
+                    <th className="py-2.5 px-4 font-semibold w-40 hidden md:table-cell">Thời Gian Sửa</th>
                     <th className="py-2.5 px-4 font-semibold w-24 text-right">Thao Tác</th>
                   </tr>
                 </thead>
@@ -830,17 +842,17 @@ export const SshPage: React.FC<SshPageProps> = ({
                         </td>
 
                         {/* Size */}
-                        <td className="py-2 px-4 font-mono text-[11px] text-slate-400">
+                        <td className="py-2 px-4 font-mono text-[11px] text-slate-400 hidden sm:table-cell">
                           {file.isDirectory ? '—' : formatFileSize(file.size)}
                         </td>
 
                         {/* Permissions */}
-                        <td className="py-2 px-4 font-mono text-[11px] text-slate-500">
+                        <td className="py-2 px-4 font-mono text-[11px] text-slate-500 hidden md:table-cell">
                           {file.permissions || '-rw-r--r--'}
                         </td>
 
                         {/* Modified Time */}
-                        <td className="py-2 px-4 font-mono text-[11px] text-slate-400">
+                        <td className="py-2 px-4 font-mono text-[11px] text-slate-400 hidden md:table-cell">
                           {new Date(file.modifiedTime).toLocaleString('vi-VN', {
                             dateStyle: 'short',
                             timeStyle: 'short',

@@ -3,6 +3,8 @@ import { TitleBar } from './components/TitleBar';
 import { Sidebar, NavRoute } from './components/Sidebar';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { ExitConfirmModal } from './components/ExitConfirmModal';
+import { ConfirmProvider } from './context/ConfirmContext';
 
 import { HomePage } from './pages/HomePage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -15,6 +17,7 @@ import { DevOpsPage } from './pages/DevOpsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SetupPage } from './pages/SetupPage';
 import { GuidePage } from './pages/GuidePage';
+import { AboutPage } from './pages/AboutPage';
 
 import {
   ProjectItem,
@@ -34,6 +37,7 @@ export const App: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
+  const [isExitModalOpen, setIsExitModalOpen] = useState(false);
 
   // Core data states
   const [projects, setProjects] = useState<ProjectItem[]>([]);
@@ -112,7 +116,16 @@ export const App: React.FC = () => {
   const refreshCommands = useCallback(async () => {
     try {
       const cmds = await api.getCommands();
-      setCommands(cmds);
+      const aboutCmd: CommandPaletteItem = {
+        id: 'nav:about',
+        title: 'Tác giả: Vũ Xuân Lâm (@iplam24)',
+        subtitle: 'Thông tin tác giả, GitHub https://github.com/iplam24/iplam24, Email vxlcontact143@gmail.com',
+        category: 'Hệ Thống',
+        actionType: 'navigate',
+        payload: { route: 'about' },
+        icon: 'heart',
+      };
+      setCommands([aboutCmd, ...cmds]);
     } catch { }
   }, []);
 
@@ -173,6 +186,29 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Native WebView2 Host Message Listener (Taskbar close, System Tray Exit, Hotkeys)
+  useEffect(() => {
+    const webview = (window as any).chrome?.webview;
+    if (!webview) return;
+
+    const handleWebMessage = (event: any) => {
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (!data || !data.type) return;
+
+        if (data.type === 'REQUEST_EXIT_CONFIRM') {
+          setIsExitModalOpen(true);
+        } else if (data.type === 'FOCUS_COMMAND_PALETTE') {
+          refreshCommands();
+          setIsCommandPaletteOpen(true);
+        }
+      } catch {}
+    };
+
+    webview.addEventListener('message', handleWebMessage);
+    return () => webview.removeEventListener('message', handleWebMessage);
+  }, [refreshCommands]);
+
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -211,6 +247,11 @@ export const App: React.FC = () => {
       else if (e.key === 'F1') {
         e.preventDefault();
         setCurrentRoute('guide');
+      }
+      // Ctrl + I -> Author & Vibe / About
+      else if (e.ctrlKey && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        setCurrentRoute('about');
       }
       // Number shortcuts Ctrl + 1, 2, 3, 4, 5, 6
       else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
@@ -306,7 +347,8 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0c0d12] text-slate-100 overflow-hidden select-none font-sans">
+    <ConfirmProvider>
+      <div className="h-screen w-screen flex flex-col bg-[#0c0d12] text-slate-100 overflow-hidden select-none font-sans">
       {/* Windows 11 Fluent Title Bar */}
       <TitleBar
         metrics={metrics}
@@ -317,10 +359,11 @@ export const App: React.FC = () => {
         }}
         onOpenAiHub={() => setCurrentRoute('ai')}
         onOpenGuide={() => setCurrentRoute('guide')}
+        onOpenAbout={() => setCurrentRoute('about')}
       />
 
       {/* Main App Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0 h-full">
         {/* Sidebar */}
         <Sidebar
           currentRoute={currentRoute}
@@ -331,7 +374,7 @@ export const App: React.FC = () => {
         />
 
         {/* Dynamic Route Viewport */}
-        <main className="flex-1 flex flex-col overflow-hidden relative bg-[#0c0d12]">
+        <main className="flex-1 flex flex-col overflow-hidden relative bg-[#0c0d12] min-h-0 h-full w-full">
           {currentRoute === 'home' && (
             <HomePage
               metrics={metrics}
@@ -357,7 +400,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          <div className={`w-full h-full ${currentRoute === 'git' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full h-full min-h-0 ${currentRoute === 'git' ? 'flex flex-col' : 'hidden'}`}>
             <GitPage
               projects={projects}
               gitAccounts={gitAccounts}
@@ -370,7 +413,7 @@ export const App: React.FC = () => {
             />
           </div>
 
-          <div className={`w-full h-full ${currentRoute === 'ai' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full h-full min-h-0 ${currentRoute === 'ai' ? 'flex flex-col' : 'hidden'}`}>
             <AiPage
               providers={aiProviders}
               activeProvider={activeAiProvider}
@@ -381,12 +424,13 @@ export const App: React.FC = () => {
                 api.setDefaultAiProvider(p.id).then(() => refreshAiProviders());
               }}
               onNavigateSettings={() => setCurrentRoute('settings')}
+              onOpenTerminal={handleOpenTerminalForPath}
               onRunCommandInTerminal={handleRunCommandInTerminal}
               onShowToast={showToast}
             />
           </div>
 
-          <div className={`w-full h-full ${currentRoute === 'ssh' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full h-full min-h-0 ${currentRoute === 'ssh' ? 'flex flex-col' : 'hidden'}`}>
             <SshPage
               profiles={sshProfiles}
               onRefreshProfiles={refreshSshProfiles}
@@ -395,10 +439,11 @@ export const App: React.FC = () => {
             />
           </div>
 
-          <div className={`w-full h-full ${currentRoute === 'terminal' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full h-full min-h-0 ${currentRoute === 'terminal' ? 'flex flex-col' : 'hidden'}`}>
             <TerminalPage
               shells={shells}
               sshProfiles={sshProfiles}
+              defaultShell={settings.defaultShell || 'PowerShell'}
               pendingSshProfileId={pendingSshProfileId}
               onClearPendingSsh={() => setPendingSshProfileId(null)}
               pendingRunCommand={pendingRunCommand}
@@ -447,6 +492,10 @@ export const App: React.FC = () => {
           {currentRoute === 'guide' && (
             <GuidePage onShowToast={showToast} />
           )}
+
+          {currentRoute === 'about' && (
+            <AboutPage onNavigate={setCurrentRoute} onShowToast={showToast} />
+          )}
         </main>
       </div>
 
@@ -474,8 +523,15 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {/* Native Exit Application Confirmation Modal */}
+      <ExitConfirmModal
+        isOpen={isExitModalOpen}
+        onClose={() => setIsExitModalOpen(false)}
+      />
+
       {/* Floating Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
+    </ConfirmProvider>
   );
 };

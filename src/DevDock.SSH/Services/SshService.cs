@@ -400,9 +400,64 @@ public class SshService : ISshService
     }
 
     // =========================================================================
-    // 1. GENERIC COMMAND EXECUTION
+    // 1. GENERIC COMMAND EXECUTION & ELEVATION
     // =========================================================================
-    public async Task<SshCommandResult> ExecuteCommandAsync(string profileId, string command, int timeoutSeconds = 60)
+    private async Task<string> PrepareElevatedCommandAsync(SshProfile profile, string command)
+    {
+        var cleanCmd = command.Trim();
+        if (cleanCmd.StartsWith("sudo ", StringComparison.OrdinalIgnoreCase))
+        {
+            cleanCmd = cleanCmd.Substring(5).Trim();
+        }
+
+        // Set non-interactive debconf / apt environment variables
+        var fullScript = $"export DEBIAN_FRONTEND=noninteractive\n{cleanCmd}";
+
+        if (string.Equals(profile.Username, "root", StringComparison.OrdinalIgnoreCase))
+        {
+            return fullScript;
+        }
+
+        var scriptBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(fullScript));
+        var password = await _credentialService.GetSecretAsync($"ssh:{profile.Id}:password");
+
+        if (!string.IsNullOrEmpty(password))
+        {
+            var passBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(password));
+            return $"(echo '{passBase64}' | base64 -d) | sudo -S -p '' bash -c \"(echo '{scriptBase64}' | base64 -d) | bash\"";
+        }
+        else
+        {
+            return $"sudo -n bash -c \"(echo '{scriptBase64}' | base64 -d) | bash\"";
+        }
+    }
+
+    private async Task WriteSystemFileAsync(string profileId, string targetPath, byte[] content)
+    {
+        var profile = await GetProfileByIdAsync(profileId)
+            ?? throw new InvalidOperationException($"SSH profile '{profileId}' not found");
+
+        if (string.Equals(profile.Username, "root", StringComparison.OrdinalIgnoreCase))
+        {
+            await SftpUploadFileAsync(profileId, targetPath, content);
+        }
+        else
+        {
+            var tempPath = $"/tmp/devdock_{Guid.NewGuid():N}.tmp";
+            await SftpUploadFileAsync(profileId, tempPath, content);
+
+            var targetDir = Path.GetDirectoryName(targetPath)?.Replace('\\', '/');
+            var dirCmd = string.IsNullOrEmpty(targetDir) ? "" : $"mkdir -p '{targetDir}' && ";
+            var moveCmd = $"{dirCmd}mv -f '{tempPath}' '{targetPath}' && chown root:root '{targetPath}' && chmod 644 '{targetPath}'";
+            var res = await ExecuteCommandAsync(profileId, moveCmd, 30, elevated: true);
+            if (!res.Success)
+            {
+                throw new InvalidOperationException($"Không thể lưu tệp hệ thống '{targetPath}': {res.Error}");
+            }
+        }
+    }
+
+    public async Task<SshCommandResult> ExecuteCommandAsync(string profileId, string command, int timeoutSeconds = 60, bool elevated = false)
     {
         var profile = await GetProfileByIdAsync(profileId)
             ?? throw new InvalidOperationException($"SSH profile '{profileId}' not found");
@@ -412,11 +467,15 @@ public class SshService : ISshService
 
         try
         {
+            var finalCommand = elevated || command.Trim().StartsWith("sudo ", StringComparison.OrdinalIgnoreCase)
+                ? await PrepareElevatedCommandAsync(profile, command)
+                : command;
+
             using var client = new SshClient(connInfo);
             client.ConnectionInfo.Timeout = TimeSpan.FromSeconds(Math.Min(timeoutSeconds, 15));
             await Task.Run(() => client.Connect());
 
-            using var cmd = client.CreateCommand(command);
+            using var cmd = client.CreateCommand(finalCommand);
             cmd.CommandTimeout = TimeSpan.FromSeconds(timeoutSeconds);
 
             var output = await Task.Run(() => cmd.Execute());
@@ -594,7 +653,7 @@ ufw status numbered 2>/dev/null || echo 'inactive'
     {
         if (pid <= 1) return false;
         var cmd = force ? $"kill -9 {pid}" : $"kill {pid}";
-        var res = await ExecuteCommandAsync(profileId, cmd, 10);
+        var res = await ExecuteCommandAsync(profileId, cmd, 10, elevated: true);
         return res.Success;
     }
 
@@ -610,66 +669,54 @@ pm2 jlist 2>/dev/null || echo 'NO_PM2'
         var result = new List<SshProcessItem>();
         if (string.IsNullOrWhiteSpace(res.Output)) return result;
 
-        var pm2Match = Regex.Match(res.Output, @"===PM2===\s*\r?\n([\s\S]+)");
-        if (pm2Match.Success)
+        var chunks = res.Output.Split(new[] { "===SYSTEMD===", "===PM2===" }, StringSplitOptions.RemoveEmptyEntries);
+        if (chunks.Length >= 1)
         {
-            var pm2Json = pm2Match.Groups[1].Value.Trim();
-            if (!pm2Json.StartsWith("NO_PM2") && pm2Json.StartsWith("["))
+            var systemdLines = chunks[0].Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in systemdLines)
+            {
+                var parts = line.Split(new[] { "|||" }, StringSplitOptions.None);
+                if (parts.Length >= 3)
+                {
+                    result.Add(new SshProcessItem
+                    {
+                        Id = parts[0].Trim(),
+                        Name = parts[0].Trim(),
+                        Type = "systemd",
+                        Status = parts.Length >= 3 ? $"{parts[1].Trim()} ({parts[2].Trim()})" : parts[1].Trim()
+                    });
+                }
+            }
+        }
+
+        if (chunks.Length >= 2)
+        {
+            var pm2Output = chunks[1].Trim();
+            if (!pm2Output.Contains("NO_PM2") && pm2Output.StartsWith("["))
             {
                 try
                 {
-                    using var doc = JsonDocument.Parse(pm2Json);
-                    foreach (var el in doc.RootElement.EnumerateArray())
+                    var doc = JsonDocument.Parse(pm2Output);
+                    foreach (var elem in doc.RootElement.EnumerateArray())
                     {
-                        var name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                        var pmId = el.TryGetProperty("pm_id", out var id) ? id.ToString() : "";
-                        var status = "unknown";
-                        if (el.TryGetProperty("pm2_env", out var env) && env.TryGetProperty("status", out var st))
-                        {
-                            status = st.GetString() ?? "unknown";
-                        }
-                        string cpu = "";
-                        string memory = "";
-                        if (el.TryGetProperty("monit", out var monit))
-                        {
-                            if (monit.TryGetProperty("cpu", out var c)) cpu = $"{c.GetDouble():F1}%";
-                            if (monit.TryGetProperty("memory", out var m)) memory = $"{(m.GetInt64() / (1024 * 1024))} MB";
-                        }
+                        var name = elem.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        var pmId = elem.TryGetProperty("pm_id", out var id) ? id.GetInt32().ToString() : "";
+                        var status = elem.TryGetProperty("pm2_env", out var env) && env.TryGetProperty("status", out var st) ? st.GetString() ?? "unknown" : "unknown";
+                        var memory = elem.TryGetProperty("monit", out var m) && m.TryGetProperty("memory", out var mem) ? (mem.GetInt64() / 1024 / 1024).ToString() + " MB" : "-";
+                        var cpu = elem.TryGetProperty("monit", out var c) && c.TryGetProperty("cpu", out var cp) ? cp.GetInt32().ToString() + "%" : "-";
 
                         result.Add(new SshProcessItem
                         {
-                            Type = "pm2",
-                            Name = name,
                             Id = pmId,
+                            Name = name,
+                            Type = "pm2",
                             Status = status,
-                            Cpu = cpu,
-                            Memory = memory
+                            Memory = memory,
+                            Cpu = cpu
                         });
                     }
                 }
                 catch { }
-            }
-        }
-
-        var sysMatch = Regex.Match(res.Output, @"===SYSTEMD===\s*\r?\n([\s\S]+?)(?:===PM2===|$)");
-        if (sysMatch.Success)
-        {
-            var lines = sysMatch.Groups[1].Value.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in lines)
-            {
-                var parts = line.Split(new[] { "|||" }, StringSplitOptions.None);
-                if (parts.Length >= 2)
-                {
-                    var unit = parts[0].Trim();
-                    var active = parts[1].Trim();
-                    result.Add(new SshProcessItem
-                    {
-                        Type = "systemd",
-                        Name = unit,
-                        Id = unit,
-                        Status = active
-                    });
-                }
             }
         }
 
@@ -679,6 +726,7 @@ pm2 jlist 2>/dev/null || echo 'NO_PM2'
     public async Task<SshCommandResult> ProcessActionAsync(string profileId, string type, string processNameOrId, string action)
     {
         string cmd;
+        bool isElevated = false;
         if (type == "pm2")
         {
             if (action == "logs")
@@ -692,7 +740,13 @@ pm2 jlist 2>/dev/null || echo 'NO_PM2'
         }
         else
         {
-            if (action == "logs")
+            isElevated = true;
+            if (action == "status")
+            {
+                cmd = $"systemctl status {processNameOrId} --no-pager 2>&1";
+                isElevated = false;
+            }
+            else if (action == "logs")
             {
                 cmd = $"journalctl -u {processNameOrId} -n 100 --no-pager 2>/dev/null";
             }
@@ -702,7 +756,7 @@ pm2 jlist 2>/dev/null || echo 'NO_PM2'
             }
         }
 
-        return await ExecuteCommandAsync(profileId, cmd, 30);
+        return await ExecuteCommandAsync(profileId, cmd, 30, elevated: isElevated);
     }
 
     public async Task<SshCommandResult> CreateSystemdServiceAsync(string profileId, string serviceName, string execStart, string workingDir, string user, string? envVars)
@@ -737,10 +791,10 @@ pm2 jlist 2>/dev/null || echo 'NO_PM2'
         sb.AppendLine("WantedBy=multi-user.target");
 
         var contentBytes = Encoding.UTF8.GetBytes(sb.ToString());
-        await SftpUploadFileAsync(profileId, fileName, contentBytes);
+        await WriteSystemFileAsync(profileId, fileName, contentBytes);
 
         var activateCmd = $"systemctl daemon-reload && systemctl enable {cleanName} && systemctl start {cleanName}";
-        var res = await ExecuteCommandAsync(profileId, activateCmd, 20);
+        var res = await ExecuteCommandAsync(profileId, activateCmd, 20, elevated: true);
 
         var profile = await GetProfileByIdAsync(profileId);
         if (profile != null && !profile.Metadata.TrackedSystemdServices.Contains(cleanName + ".service"))
@@ -892,14 +946,14 @@ done
 
         var remoteFilePath = $"/etc/nginx/sites-available/{cleanSiteName}";
         var contentBytes = Encoding.UTF8.GetBytes(sb.ToString());
-        await SftpUploadFileAsync(profileId, remoteFilePath, contentBytes);
+        await WriteSystemFileAsync(profileId, remoteFilePath, contentBytes);
 
         var cmd = $"mkdir -p /etc/nginx/sites-enabled && ln -sf {remoteFilePath} /etc/nginx/sites-enabled/{cleanSiteName} && nginx -t 2>&1";
-        var testRes = await ExecuteCommandAsync(profileId, cmd, 15);
+        var testRes = await ExecuteCommandAsync(profileId, cmd, 15, elevated: true);
 
         if (!testRes.Success)
         {
-            await ExecuteCommandAsync(profileId, $"rm -f /etc/nginx/sites-enabled/{cleanSiteName}", 10);
+            await ExecuteCommandAsync(profileId, $"rm -f /etc/nginx/sites-enabled/{cleanSiteName}", 10, elevated: true);
             return new SshCommandResult
             {
                 Success = false,
@@ -909,7 +963,7 @@ done
             };
         }
 
-        var reloadRes = await ExecuteCommandAsync(profileId, "systemctl reload nginx 2>&1", 10);
+        var reloadRes = await ExecuteCommandAsync(profileId, "systemctl reload nginx 2>&1", 10, elevated: true);
 
         var profile = await GetProfileByIdAsync(profileId);
         if (profile != null)
@@ -944,13 +998,13 @@ done
         var cmd = enable
             ? $"ln -sf /etc/nginx/sites-available/{siteName} /etc/nginx/sites-enabled/{siteName} && nginx -t && systemctl reload nginx"
             : $"rm -f /etc/nginx/sites-enabled/{siteName} && nginx -t && systemctl reload nginx";
-        return await ExecuteCommandAsync(profileId, cmd, 15);
+        return await ExecuteCommandAsync(profileId, cmd, 15, elevated: true);
     }
 
     public async Task<SshCommandResult> DeleteNginxSiteAsync(string profileId, string siteName)
     {
         var cmd = $"rm -f /etc/nginx/sites-enabled/{siteName} /etc/nginx/sites-available/{siteName} && nginx -t && systemctl reload nginx";
-        var res = await ExecuteCommandAsync(profileId, cmd, 15);
+        var res = await ExecuteCommandAsync(profileId, cmd, 15, elevated: true);
 
         var profile = await GetProfileByIdAsync(profileId);
         if (profile != null)
@@ -964,13 +1018,13 @@ done
 
     public async Task<SshCommandResult> ReloadNginxAsync(string profileId)
     {
-        return await ExecuteCommandAsync(profileId, "nginx -t && systemctl reload nginx", 15);
+        return await ExecuteCommandAsync(profileId, "nginx -t && systemctl reload nginx", 15, elevated: true);
     }
 
     public async Task<string> GetNginxLogsAsync(string profileId, string logType, int lines = 100)
     {
         var file = logType == "error" ? "/var/log/nginx/error.log" : "/var/log/nginx/access.log";
-        var res = await ExecuteCommandAsync(profileId, $"tail -n {lines} {file} 2>/dev/null", 10);
+        var res = await ExecuteCommandAsync(profileId, $"tail -n {lines} {file} 2>/dev/null", 10, elevated: true);
         return res.Output;
     }
 
@@ -979,7 +1033,7 @@ done
     // =========================================================================
     public async Task<List<SshCertbotCertificateItem>> GetCertbotCertificatesAsync(string profileId)
     {
-        var res = await ExecuteCommandAsync(profileId, "certbot certificates 2>/dev/null", 15);
+        var res = await ExecuteCommandAsync(profileId, "certbot certificates 2>/dev/null", 15, elevated: true);
         var certs = new List<SshCertbotCertificateItem>();
         if (string.IsNullOrWhiteSpace(res.Output)) return certs;
 
@@ -1016,14 +1070,14 @@ done
     public async Task<SshCommandResult> InstallCertbotAsync(string profileId)
     {
         var cmd = "apt-get update -y && apt-get install -y certbot python3-certbot-nginx 2>&1 || (dnf install -y certbot python3-certbot-nginx 2>&1 || yum install -y certbot python3-certbot-nginx 2>&1)";
-        return await ExecuteCommandAsync(profileId, cmd, 120);
+        return await ExecuteCommandAsync(profileId, cmd, 180, elevated: true);
     }
 
     public async Task<SshCommandResult> IssueCertbotSslAsync(string profileId, string domain, string email)
     {
         var cleanEmail = string.IsNullOrWhiteSpace(email) ? "admin@" + domain : email.Trim();
         var cmd = $"certbot --nginx -d {domain} --non-interactive --agree-tos -m {cleanEmail} --redirect 2>&1";
-        var res = await ExecuteCommandAsync(profileId, cmd, 90);
+        var res = await ExecuteCommandAsync(profileId, cmd, 120, elevated: true);
 
         if (res.Success)
         {

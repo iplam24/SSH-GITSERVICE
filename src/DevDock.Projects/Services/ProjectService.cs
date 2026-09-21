@@ -353,4 +353,46 @@ public class ProjectService : IProjectService
         }
         return Task.CompletedTask;
     }
+
+    public Task OpenInTerminalAsync(string path)
+    {
+        if (Directory.Exists(path) || File.Exists(path))
+        {
+            var targetDir = Directory.Exists(path) ? path : Path.GetDirectoryName(path) ?? path;
+            try
+            {
+                // Try Windows Terminal (wt.exe) first
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "wt.exe",
+                    Arguments = $"-d \"{targetDir}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                try
+                {
+                    // Fallback to powershell
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        WorkingDirectory = targetDir,
+                        UseShellExecute = true
+                    });
+                }
+                catch
+                {
+                    // Fallback to cmd
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        WorkingDirectory = targetDir,
+                        UseShellExecute = true
+                    });
+                }
+            }
+        }
+        return Task.CompletedTask;
+    }
 }

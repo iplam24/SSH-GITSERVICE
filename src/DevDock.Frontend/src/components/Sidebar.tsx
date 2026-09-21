@@ -12,9 +12,11 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  Heart,
 } from 'lucide-react';
+import { DevDockLogo } from './DevDockLogo';
 
-export type NavRoute = 'home' | 'projects' | 'git' | 'ai' | 'ssh' | 'terminal' | 'tools' | 'devops' | 'settings' | 'guide';
+export type NavRoute = 'home' | 'projects' | 'git' | 'ai' | 'ssh' | 'terminal' | 'tools' | 'devops' | 'settings' | 'guide' | 'about';
 
 interface SidebarProps {
   currentRoute: NavRoute;
@@ -48,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const systemNav = [
     { route: 'settings' as NavRoute, label: 'Cài đặt', icon: Settings, shortcut: 'Ctrl+,' },
     { route: 'guide' as NavRoute, label: 'Hướng dẫn sử dụng', icon: BookOpen, shortcut: 'F1' },
+    { route: 'about' as NavRoute, label: 'Tác giả & Vibe', icon: Heart, shortcut: 'Ctrl+I' },
   ];
 
   const renderNavGroup = (items: typeof mainNav) => (
@@ -115,18 +118,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {renderNavGroup(systemNav)}
       </div>
 
-      {/* Footer / Collapse Button */}
-      <div className="p-2 border-t border-[#1a1e2a] flex items-center justify-between">
-        {!collapsed && (
-          <div className="flex items-center gap-2 px-2 text-[11px] text-slate-400 font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />
-            <span className="text-[10px] text-slate-400">Hệ thống sẵn sàng</span>
-          </div>
+      {/* Footer / App Logo, Version & Author & Collapse Button */}
+      <div className="p-2 border-t border-[#1a1e2a] flex items-center justify-between gap-1">
+        {!collapsed ? (
+          <button
+            type="button"
+            onClick={() => onRouteChange('about')}
+            className="flex items-center gap-2 px-1.5 py-1 rounded text-left hover:bg-white/[0.04] transition-colors cursor-pointer group flex-1 min-w-0"
+            title="DevDock Workstation v1.5.0 LTS — Phát triển bởi Vũ Xuân Lâm (@iplam24)"
+          >
+            <DevDockLogo size={18} />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] text-slate-300 group-hover:text-cyan-300 font-mono font-semibold truncate leading-tight">
+                DevDock v1.5.0
+              </span>
+              <span className="text-[9px] text-slate-500 group-hover:text-slate-400 font-mono truncate leading-tight">
+                by Vũ Xuân Lâm
+              </span>
+            </div>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onRouteChange('about')}
+            className="p-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer group flex items-center justify-center"
+            title="DevDock Workstation v1.5.0 LTS — Vũ Xuân Lâm"
+          >
+            <DevDockLogo size={18} />
+          </button>
         )}
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="p-1.5 rounded-md text-slate-400 hover:text-slate-100 hover:bg-white/[0.05] transition-colors ml-auto cursor-pointer"
+          className="p-1.5 rounded-md text-slate-400 hover:text-slate-100 hover:bg-white/[0.05] transition-colors shrink-0 cursor-pointer"
           title={collapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}

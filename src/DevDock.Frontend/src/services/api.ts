@@ -63,6 +63,11 @@ import {
   HostEntryItem,
   SystemEnvVariableItem,
   DotEnvCompareResult,
+  SyncGithubSecretsRequest,
+  SyncGithubSecretsResult,
+  CreateGithubReleaseRequest,
+  CreateGithubReleaseResult,
+  GithubReleaseItem,
 } from '../types';
 
 const API_BASE = window.location.port === '5173' ? 'http://127.0.0.1:38420' : '';
@@ -118,6 +123,8 @@ export const api = {
     req<void>('/api/projects/open-explorer', { method: 'POST', body: JSON.stringify({ path }) }),
   openEditor: (path: string, editor = 'code') =>
     req<void>('/api/projects/open-editor', { method: 'POST', body: JSON.stringify({ path, editor }) }),
+  openTerminal: (path: string) =>
+    req<{ success?: boolean }>('/api/projects/open-terminal', { method: 'POST', body: JSON.stringify({ path }) }),
   browseFolder: (initialPath?: string) =>
     req<{ folder: string | null; canceled: boolean }>('/api/system/browse-folder', {
       method: 'POST',
@@ -319,15 +326,15 @@ export const api = {
     }),
 
   // Advanced SSH Server Management
-  sshExecCommand: (profileId: string, command: string, timeoutSeconds = 60) =>
+  sshExecCommand: (profileId: string, command: string, timeoutSeconds = 60, elevated = false) =>
     req<SshCommandResult>(`/api/ssh/${profileId}/exec`, {
       method: 'POST',
-      body: JSON.stringify({ command, timeoutSeconds }),
+      body: JSON.stringify({ command, timeoutSeconds, elevated }),
     }),
-  executeSshCommand: (profileId: string, command: string, timeoutSeconds = 60) =>
+  executeSshCommand: (profileId: string, command: string, timeoutSeconds = 60, elevated = false) =>
     req<SshCommandResult>(`/api/ssh/${profileId}/exec`, {
       method: 'POST',
-      body: JSON.stringify({ command, timeoutSeconds }),
+      body: JSON.stringify({ command, timeoutSeconds, elevated }),
     }),
   getSshOverview: (profileId: string) =>
     req<{ success: boolean; overview: SshServerOverview; errorMessage?: string }>(`/api/ssh/${profileId}/overview`),
@@ -522,6 +529,31 @@ export const api = {
       body: JSON.stringify({ currentEnv, exampleEnv }),
     }),
 
+  // GitHub Actions Secrets & Releases Automation
+  syncGithubSecrets: (body: SyncGithubSecretsRequest) =>
+    req<SyncGithubSecretsResult>('/api/git/secrets/sync', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  createGithubRelease: (body: CreateGithubReleaseRequest) =>
+    req<CreateGithubReleaseResult>('/api/git/releases/create', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getGithubReleases: (accountId: string, remoteRepoFullName: string) =>
+    req<GithubReleaseItem[]>(`/api/git/releases?accountId=${encodeURIComponent(accountId)}&remoteRepoFullName=${encodeURIComponent(remoteRepoFullName)}`),
+
+  // Open External URL in default Windows browser
+  openUrl: (url: string) => {
+    try {
+      window.open(url, '_blank');
+    } catch {}
+    return req<{ success: boolean }>('/api/system/open-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }).catch(() => {});
+  },
+
   // WebSocket Helpers
   getTerminalWsUrl: (sessionId: string) => {
     const host = window.location.port === '5173' ? '127.0.0.1:38420' : window.location.host;
@@ -556,6 +588,16 @@ export const windowControls = {
   drag: () => {
     if ((window as any).chrome?.webview) {
       (window as any).chrome.webview.postMessage(JSON.stringify({ type: 'window:drag' }));
+    }
+  },
+  forceExit: () => {
+    if ((window as any).chrome?.webview) {
+      (window as any).chrome.webview.postMessage(JSON.stringify({ type: 'app:force-exit' }));
+    }
+  },
+  minimizeToTray: () => {
+    if ((window as any).chrome?.webview) {
+      (window as any).chrome.webview.postMessage(JSON.stringify({ type: 'window:minimize-to-tray' }));
     }
   },
 };

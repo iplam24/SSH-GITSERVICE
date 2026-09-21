@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Minus, Square, X, Cpu, HardDrive, Sparkles, BookOpen } from 'lucide-react';
+import { Search, Minus, Square, X, Cpu, HardDrive, Sparkles, BookOpen, Heart } from 'lucide-react';
 import { windowControls } from '../services/api';
 import { SystemMetrics } from '../types';
 import { DevDockLogo } from './DevDockLogo';
@@ -10,6 +10,7 @@ interface TitleBarProps {
   onOpenCommandPalette: () => void;
   onOpenAiHub?: () => void;
   onOpenGuide?: () => void;
+  onOpenAbout?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
@@ -18,6 +19,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onOpenCommandPalette,
   onOpenAiHub,
   onOpenGuide,
+  onOpenAbout,
 }) => {
   return (
     <header
@@ -81,6 +83,19 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           >
             <BookOpen className="w-3 h-3 text-accent" />
             <span className="hidden sm:inline">Hướng dẫn</span>
+          </button>
+        )}
+
+        {/* Author & Vibe Trigger */}
+        {onOpenAbout && (
+          <button
+            type="button"
+            onClick={onOpenAbout}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-gradient-to-r from-cyan-500/10 to-blue-500/10 hover:from-cyan-500/20 hover:to-blue-500/20 border border-cyan-500/25 text-[11px] text-cyan-300 font-medium transition-colors cursor-pointer"
+            title="Sản phẩm phát triển bởi Vũ Xuân Lâm (@iplam24) — Bấm xem chi tiết"
+          >
+            <Heart className="w-3 h-3 text-rose-400 fill-rose-400/40" />
+            <span>Vũ Xuân Lâm</span>
           </button>
         )}
 

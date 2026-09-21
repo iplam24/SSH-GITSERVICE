@@ -51,4 +51,7 @@ public interface IGitService
     Task<bool> SaveGitIgnoreAsync(SaveGitIgnoreRequest request);
     Task<bool> AddToGitIgnoreAsync(AddToGitIgnoreRequest request);
     Task<Dictionary<string, string>> GetGitIgnoreTemplatesAsync();
+    Task<SyncGithubSecretsResult> SyncGithubSecretsAsync(SyncGithubSecretsRequest request);
+    Task<CreateGithubReleaseResult> CreateGithubReleaseAsync(CreateGithubReleaseRequest request);
+    Task<List<GithubReleaseItem>> GetGithubReleasesAsync(string accountId, string remoteRepoFullName);
 }

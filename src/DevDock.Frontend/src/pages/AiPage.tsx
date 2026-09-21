@@ -61,6 +61,7 @@ interface AiPageProps {
   onRefreshProviders: () => void;
   onSelectProvider: (p: AiProviderConfig) => void;
   onNavigateSettings: () => void;
+  onOpenTerminal?: (path: string) => void;
   onRunCommandInTerminal?: (cmd: string) => void;
   onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
@@ -157,6 +158,7 @@ export const AiPage: React.FC<AiPageProps> = ({
   onRefreshProviders,
   onSelectProvider,
   onNavigateSettings,
+  onOpenTerminal,
   onRunCommandInTerminal,
   onShowToast,
 }) => {
@@ -1196,15 +1198,42 @@ Quy ước trả lời:
                 <span className="text-slate-500 font-mono text-[10px]">({activeWorkspace?.folderPath})</span>
               </div>
 
-              {onRunCommandInTerminal && activeWorkspace && (
-                <button
-                  type="button"
-                  onClick={() => onRunCommandInTerminal(`cd "${activeWorkspace.folderPath}"`)}
-                  className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[10px] font-mono transition-colors cursor-pointer"
-                  title="Mở thư mục này trong Terminal"
-                >
-                  Mở Terminal tại đây
-                </button>
+              {activeWorkspace && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenTerminal && activeWorkspace.folderPath) {
+                        onOpenTerminal(activeWorkspace.folderPath);
+                        onShowToast(`Đã mở Terminal tại ${activeWorkspace.name}`, 'info');
+                      } else if (onRunCommandInTerminal && activeWorkspace.folderPath) {
+                        onRunCommandInTerminal(`cd "${activeWorkspace.folderPath}"`);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-emerald-300 text-[11px] font-mono transition-colors cursor-pointer border border-slate-700/60 shadow-sm"
+                    title={`Mở phiên Terminal tại thư mục "${activeWorkspace.folderPath}"`}
+                  >
+                    <TerminalIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Mở Terminal tại đây</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (activeWorkspace.folderPath) {
+                        try {
+                          await api.openTerminal(activeWorkspace.folderPath);
+                          onShowToast(`Đã mở Windows Terminal ngoài cho ${activeWorkspace.name}`, 'success');
+                        } catch (e: any) {
+                          onShowToast(e.message || 'Không thể mở terminal ngoài', 'error');
+                        }
+                      }
+                    }}
+                    className="p-1 rounded bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-cyan-300 text-[11px] transition-colors cursor-pointer border border-slate-700/60 shadow-sm"
+                    title="Mở thư mục trong Windows Terminal / PowerShell ngoài (External Window)"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
             </div>
           </div>

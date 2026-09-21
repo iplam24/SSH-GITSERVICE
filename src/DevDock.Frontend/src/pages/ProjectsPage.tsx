@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { ProjectItem } from '../types';
 import { api } from '../services/api';
+import { useConfirm } from '../context/ConfirmContext';
 
 interface ProjectsPageProps {
   projects: ProjectItem[];
@@ -34,6 +35,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
   onOpenGitForProject,
   onShowToast,
 }) => {
+  const confirm = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [inputPath, setInputPath] = useState('');
@@ -112,7 +114,13 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
   };
 
   const handleDeleteProject = async (id: string, name: string) => {
-    if (!confirm(`Bạn có chắc muốn xóa dự án '${name}' khỏi DevDock?`)) return;
+    const ok = await confirm({
+      title: 'Xóa Dự Án',
+      message: `Bạn có chắc muốn xóa dự án '${name}' khỏi DevDock?`,
+      confirmText: 'Xóa Dự Án',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.deleteProject(id);
       onRefreshProjects();
@@ -157,7 +165,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-5 max-w-7xl mx-auto w-full gap-5 bg-[#0c0d12]">
+    <div className="flex-1 flex flex-col overflow-hidden p-5 max-w-7xl mx-auto w-full h-full min-h-0 gap-5 bg-[#0c0d12]">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#1a1e2a]">
         <div>
@@ -198,7 +206,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
       </div>
 
       {/* Projects Grid */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0 pr-1">
         {filteredProjects.length === 0 ? (
           <div className="py-20 text-center text-slate-500 flex flex-col items-center justify-center">
             <FolderGit2 className="w-10 h-10 text-slate-600 mb-2 stroke-1" />

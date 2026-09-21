@@ -20,13 +20,16 @@ import {
   Bot,
   Zap,
   Globe,
+  Globe2,
   Radio,
   Eye,
   EyeOff,
   Image,
   GitBranch,
   Download,
+  Info,
 } from 'lucide-react';
+import { useConfirm } from '../context/ConfirmContext';
 import { AppSettings, GitAccount, GitProvider, AiProviderConfig, AiProviderType, GitGlobalConfig } from '../types';
 import { api } from '../services/api';
 
@@ -127,6 +130,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onShowToast,
   onOpenSetupWizard,
 }) => {
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<SettingsTab>('aiProviders');
 
   // AI Provider Modal State
@@ -280,7 +284,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const handleDeleteAi = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa cấu hình nhà cung cấp AI này?')) return;
+    const ok = await confirm({
+      title: 'Xóa Nhà Cung Cấp AI',
+      message: 'Bạn có chắc chắn muốn xóa cấu hình nhà cung cấp AI này?',
+      confirmText: 'Xóa Cấu Hình',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.deleteAiProvider(id);
       onRefreshAiProviders();
@@ -421,7 +431,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   const handleDeleteAccount = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa tài khoản Git này?')) return;
+    const ok = await confirm({
+      title: 'Xóa Tài Khoản Git',
+      message: 'Bạn có chắc chắn muốn xóa tài khoản Git này khỏi DevDock?',
+      confirmText: 'Xóa Tài Khoản',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.deleteGitAccount(id);
       onRefreshAccounts();
@@ -454,9 +470,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-[#090D16]">
+    <div className="flex-1 flex overflow-hidden bg-[#090D16] w-full h-full min-h-0">
       {/* Settings Sub-Sidebar */}
-      <div className="w-64 border-r border-[#1A2235] bg-[#060911] p-3 flex flex-col gap-1 flex-shrink-0">
+      <div className="w-64 border-r border-[#1A2235] bg-[#060911] p-3 flex flex-col gap-1 flex-shrink-0 overflow-y-auto min-h-0">
         <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
           Cài đặt hệ thống
         </div>
@@ -495,7 +511,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       </div>
 
       {/* Settings Viewport */}
-      <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full min-h-0 pr-2">
         {/* ==================== TAB 1: AI API PROVIDERS ==================== */}
         {activeTab === 'aiProviders' && (
           <div className="flex flex-col gap-5">
@@ -1122,9 +1138,67 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     Nút Hoạt Động
                   </button>
                   <span className="text-xs text-slate-400">
-                    Chế độ: <strong className="text-slate-200 font-medium">Dark Modern (Linear & Raycast Inspired)</strong>
+                    Chế độ: <strong className="text-slate-200 font-medium">Dark Modern (Linear &amp; Raycast Inspired)</strong>
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Language Switcher */}
+            <div className="p-5 rounded-2xl bg-[#0c0d12] border border-[#1e2230] flex flex-col gap-4">
+              <div>
+                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <Globe2 className="w-3.5 h-3.5 text-blue-400" />
+                  Ngôn ngữ giao diện (Display Language)
+                </span>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Chọn ngôn ngữ hiển thị của ứng dụng. Tính năng dịch toàn bộ UI đang được phát triển.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { id: 'vi' as const, label: 'Tiếng Việt', flag: '🇻🇳', desc: 'Vietnamese (Mặc định)' },
+                  { id: 'en' as const, label: 'English', flag: '🇬🇧', desc: 'English (Coming soon)' },
+                ] as Array<{ id: 'vi' | 'en'; label: string; flag: string; desc: string }>).map((lang) => {
+                  const isSelected = (settings.language || 'vi') === lang.id;
+                  return (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      onClick={() => {
+                        onSaveSettings({ ...settings, language: lang.id });
+                        onShowToast(
+                          lang.id === 'vi'
+                            ? 'Đã đặt ngôn ngữ: Tiếng Việt'
+                            : 'Language set to English (full i18n coming soon)',
+                          'success'
+                        );
+                      }}
+                      className={`flex items-center gap-3 p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-blue-500/60 bg-blue-500/10 text-slate-100 shadow-sm'
+                          : 'border-[#1e2230] bg-[#12141c] text-slate-400 hover:text-slate-200 hover:border-[#2a2f42]'
+                      }`}
+                    >
+                      <span className="text-2xl leading-none">{lang.flag}</span>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold">{lang.label}</span>
+                        <span className="text-[10px] text-slate-500">{lang.desc}</span>
+                      </div>
+                      {isSelected && (
+                        <CheckCircle2 className="w-4 h-4 text-blue-400 ml-auto shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/[0.07] border border-blue-500/20">
+                <Info className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Hiện tại toàn bộ giao diện DevDock được viết bằng <strong className="text-slate-300">Tiếng Việt</strong>. Hỗ trợ đa ngôn ngữ (i18n) đầy đủ đang trong lộ trình phát triển. Cài đặt này sẽ có hiệu lực khi i18n được tích hợp.
+                </p>
               </div>
             </div>
           </div>

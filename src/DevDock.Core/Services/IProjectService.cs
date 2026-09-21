@@ -12,4 +12,5 @@ public interface IProjectService
     Task<ProjectCommandResult> RunCommandAsync(ProjectCommandRunRequest request, CancellationToken cancellationToken = default);
     Task OpenInExplorerAsync(string path);
     Task OpenInEditorAsync(string path, string editor = "code");
+    Task OpenInTerminalAsync(string path);
 }

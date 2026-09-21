@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import {
@@ -28,6 +28,7 @@ export interface TerminalTab {
 interface TerminalPageProps {
   shells: ShellDescriptor[];
   sshProfiles: SshProfile[];
+  defaultShell?: TerminalShellType;
   initialSessions?: TerminalSessionInfo[];
   pendingSshProfileId?: string | null;
   onClearPendingSsh?: () => void;
@@ -47,6 +48,7 @@ interface TerminalPageProps {
 export const TerminalPage: React.FC<TerminalPageProps> = ({
   shells,
   sshProfiles,
+  defaultShell = 'PowerShell',
   initialSessions = [],
   pendingSshProfileId,
   onClearPendingSsh,
@@ -67,6 +69,50 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   const [splitMode, setSplitMode] = useState<'single' | 'horizontal' | 'vertical'>('single');
   const [activePaneTabIds, setActivePaneTabIds] = useState<{ [pane: number]: string }>({ 0: '' });
   const [isShellMenuOpen, setIsShellMenuOpen] = useState(false);
+  const shellMenuRef = useRef<HTMLDivElement>(null);
+
+  const [internalShells, setInternalShells] = useState<ShellDescriptor[]>(shells || []);
+
+  useEffect(() => {
+    if (shells && shells.length > 0) {
+      setInternalShells(shells);
+    } else {
+      api.getShells().then((res) => {
+        if (res && res.length > 0) setInternalShells(res);
+      }).catch(() => {});
+    }
+  }, [shells]);
+
+  const effectiveShells = useMemo<ShellDescriptor[]>(() => {
+    if (internalShells && internalShells.length > 0) return internalShells;
+    return [
+      { type: 'PowerShell', displayName: 'PowerShell', executablePath: 'powershell.exe', isAvailable: true },
+      { type: 'Cmd', displayName: 'Command Prompt', executablePath: 'cmd.exe', isAvailable: true },
+      { type: 'GitBash', displayName: 'Git Bash', executablePath: 'bash.exe', isAvailable: true },
+      { type: 'Wsl', displayName: 'WSL (Linux)', executablePath: 'wsl.exe', isAvailable: true },
+    ];
+  }, [internalShells]);
+
+  // Click outside to close shell dropdown
+  useEffect(() => {
+    if (!isShellMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (shellMenuRef.current && !shellMenuRef.current.contains(e.target as Node)) {
+        setIsShellMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsShellMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isShellMenuOpen]);
 
   const getInitialDimensions = () => {
     const cols = Math.max(80, Math.floor((window.innerWidth - 260) / 8.5));
@@ -77,7 +123,7 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   // Initialize first terminal if none exist and not connecting to SSH or opening CWD
   useEffect(() => {
     if (tabs.length === 0 && !pendingSshProfileId && !pendingCwd) {
-      handleCreateLocalTerminal('PowerShell');
+      handleCreateLocalTerminal(defaultShell || 'PowerShell');
     }
   }, []);
 
@@ -85,7 +131,7 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   useEffect(() => {
     if (pendingCwd) {
       const folderName = pendingCwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || pendingCwd;
-      handleCreateLocalTerminal('PowerShell', pendingCwd, `PowerShell: ${folderName}`);
+      handleCreateLocalTerminal(defaultShell || 'PowerShell', pendingCwd, `PowerShell: ${folderName}`);
       onClearPendingCwd?.();
     }
   }, [pendingCwd]);
@@ -99,22 +145,25 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   }, [pendingSshProfileId]);
 
   const handleCreateLocalTerminal = async (
-    shellType: TerminalShellType = 'PowerShell',
+    shellType: TerminalShellType = defaultShell || 'PowerShell',
     cwd?: string,
     customTitle?: string
   ) => {
     try {
       const { cols, rows } = getInitialDimensions();
       const session = await api.createTerminal(shellType, cwd, cols, rows);
+      const countOfSameShell = tabs.filter((t) => t.session?.shellType === shellType).length;
+      const displayTitle = customTitle || (countOfSameShell > 0 ? `${session.title} (${countOfSameShell + 1})` : session.title);
       const newTab: TerminalTab = {
         id: session.sessionId,
         session,
-        title: customTitle || session.title,
+        title: displayTitle,
         paneIndex: 0,
       };
       setTabs((prev) => [...prev, newTab]);
       setActiveTabId(newTab.id);
       setActivePaneTabIds((prev) => ({ ...prev, 0: newTab.id }));
+      onShowToast(`Đã mở phiên ${displayTitle}`, 'info');
     } catch (err: any) {
       onShowToast(err.message || 'Không thể khởi tạo phiên Terminal', 'error');
     }
@@ -208,25 +257,42 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
             );
           })}
 
-          {/* Plus / New Tab button with Dropdown */}
-          <div className="relative ml-1">
-            <button
-              type="button"
-              onClick={() => setIsShellMenuOpen(!isShellMenuOpen)}
-              className="flex items-center gap-1 p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-[#141E34] transition-colors cursor-pointer"
-              title="Mở thêm Terminal mới"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <ChevronDown className="w-3 h-3" />
-            </button>
+          {/* Plus / New Tab button with Split Dropdown */}
+          <div ref={shellMenuRef} className="relative ml-1 flex items-center">
+            <div className="inline-flex items-center rounded-md bg-[#12151f] hover:bg-[#181c2b] border border-[#1e2332] text-slate-300 shadow-sm transition-colors">
+              {/* Primary 1-Click New Tab Button */}
+              <button
+                type="button"
+                onClick={() => handleCreateLocalTerminal(defaultShell || 'PowerShell')}
+                className="flex items-center justify-center p-1 px-1.5 text-slate-400 hover:text-emerald-400 hover:bg-[#1f2638] rounded-l-md transition-colors cursor-pointer border-r border-[#1e2332]"
+                title={`Mở thêm tab mới (${defaultShell || 'PowerShell'})`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Dropdown Toggle for Other Shells & SSH */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsShellMenuOpen((prev) => !prev);
+                }}
+                className={`flex items-center justify-center p-1 px-1 text-slate-400 hover:text-emerald-400 hover:bg-[#1f2638] rounded-r-md transition-colors cursor-pointer ${
+                  isShellMenuOpen ? 'bg-[#1f2638] text-emerald-400' : ''
+                }`}
+                title="Tùy chọn mở Shell khác (Command Prompt, Git Bash, WSL, SSH...)"
+              >
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
 
             {/* Shell Options Dropdown */}
             {isShellMenuOpen && (
-              <div className="absolute left-0 top-8 z-50 bg-[#0E1526] border border-[#23314F] rounded-xl shadow-2xl py-2 min-w-[210px] flex flex-col text-xs animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-0 top-8 z-50 bg-[#0E1526] border border-[#23314F] rounded-xl shadow-2xl py-2 min-w-[220px] flex flex-col text-xs animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-3 py-1 text-[10px] uppercase font-mono text-slate-400 font-bold tracking-wider">
                   Shell Cục Bộ (Máy tính)
                 </div>
-                {shells.map((s) => (
+                {effectiveShells.map((s) => (
                   <button
                     key={s.type}
                     type="button"
@@ -236,7 +302,10 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
                     }}
                     className="px-3 py-1.5 text-left text-slate-300 hover:bg-[#152038] hover:text-emerald-400 transition-colors flex items-center justify-between cursor-pointer"
                   >
-                    <span>{s.displayName}</span>
+                    <span className="flex items-center gap-1.5">
+                      <TerminalIcon className="w-3 h-3 text-emerald-400" />
+                      <span>{s.displayName}</span>
+                    </span>
                     <span className="text-[10px] text-slate-500 font-mono">{s.type}</span>
                   </button>
                 ))}
@@ -258,9 +327,9 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
                         }}
                         className="px-3 py-1.5 text-left text-slate-300 hover:bg-[#152038] hover:text-cyan-300 transition-colors flex items-center gap-2 truncate cursor-pointer"
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
                         <span className="truncate font-medium">{p.name}</span>
-                        <span className="text-[10px] text-slate-500 ml-auto font-mono">{p.username}</span>
+                        <span className="text-[10px] text-slate-500 ml-auto font-mono shrink-0">{p.username}</span>
                       </button>
                     ))}
                   </>
@@ -514,6 +583,19 @@ const XTermInstance: React.FC<{
       };
     }
   }, [isActive, isPageVisible]);
+
+  // Handle commands sent to already-connected terminal (e.g. from AI CLI Assistant or run buttons)
+  useEffect(() => {
+    if (initialCommand && isActive && isPageVisible && wsRef.current?.readyState === WebSocket.OPEN) {
+      const timer = setTimeout(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(initialCommand + '\r');
+          onCommandExecuted?.();
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [initialCommand, isActive, isPageVisible, onCommandExecuted]);
 
   useEffect(() => {
     if (!containerRef.current) return;

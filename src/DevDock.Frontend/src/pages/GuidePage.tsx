@@ -640,7 +640,7 @@ export const GuidePage: React.FC<{ onShowToast: (msg: string, type: 'success' | 
   const activeSection = sections.find((s) => s.id === selectedSectionId) || sections[0];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5">
+    <div className="w-full h-full flex flex-col overflow-hidden p-6 max-w-7xl mx-auto gap-5 min-h-0">
       {/* Top Banner Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
@@ -669,9 +669,9 @@ export const GuidePage: React.FC<{ onShowToast: (msg: string, type: 'success' | 
       </div>
 
       {/* Main Layout: Left Navigation Drawer & Right Article Viewer */}
-      <div className="flex-1 flex flex-col md:flex-row gap-5 overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row gap-5 overflow-hidden min-h-0">
         {/* Left Navigation Column */}
-        <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-1.5 overflow-y-auto pr-1">
+        <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-1.5 overflow-y-auto pr-1 min-h-0">
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1 select-none">
             Mục Lục Cẩm Nang ({filteredSections.length})
           </span>
@@ -718,7 +718,7 @@ export const GuidePage: React.FC<{ onShowToast: (msg: string, type: 'success' | 
         </div>
 
         {/* Right Article Viewer */}
-        <div className="flex-1 bg-surface border border-border rounded-xl p-6 overflow-y-auto flex flex-col gap-6 shadow-sm">
+        <div className="flex-1 bg-surface border border-border rounded-xl p-6 overflow-y-auto flex flex-col gap-6 shadow-sm min-h-0">
           {/* Article Header */}
           <div className="flex items-start justify-between border-b border-border/60 pb-4">
             <div className="flex items-center gap-3">

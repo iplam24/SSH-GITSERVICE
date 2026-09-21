@@ -63,13 +63,13 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ initialTool = 'json', onSh
   ];
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-[#0B0F17]">
+    <div className="flex-1 flex overflow-hidden bg-[#0B0F17] w-full h-full min-h-0">
       {/* Tools Sidebar List */}
-      <div className="w-56 border-r border-[#1E293B] bg-[#070A0F] p-3 flex flex-col gap-1 flex-shrink-0">
+      <div className="w-56 border-r border-[#1E293B] bg-[#070A0F] p-3 flex flex-col gap-1 flex-shrink-0 min-h-0">
         <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
           Tiện ích Lập trình viên
         </div>
-        <div className="flex-1 overflow-y-auto flex flex-col gap-0.5">
+        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col gap-0.5">
           {toolsList.map((tool) => {
             const Icon = tool.icon;
             const isActive = activeTool === tool.id;
@@ -93,7 +93,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ initialTool = 'json', onSh
       </div>
 
       {/* Tool Content Viewport */}
-      <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full min-h-0 pr-2">
         {activeTool === 'json' && <JsonTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
         {activeTool === 'jwt' && <JwtTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
         {activeTool === 'base64' && <Base64Tool onCopy={copyToClipboard} copiedKey={copiedKey} />}

@@ -174,7 +174,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#070A0F] text-slate-100 select-none relative">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#070A0F] text-slate-100 select-none relative w-full h-full min-h-0">
       {/* Background cyber glow effect */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -258,7 +258,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
       </div>
 
       {/* Main Content Viewport */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col items-center justify-center z-10">
+      <div className="flex-1 overflow-y-auto p-6 md:p-10 flex flex-col items-center justify-start md:justify-center z-10 min-h-0 pr-1">
         <div className="w-full max-w-3xl bg-[#111827]/90 border border-[#1E293B] rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur-xl flex flex-col min-h-[440px] justify-between">
           {/* ==================== BƯỚC 1: CHÀO MỪNG ==================== */}
           {step === 1 && (

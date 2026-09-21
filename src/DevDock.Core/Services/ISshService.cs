@@ -17,7 +17,7 @@ public interface ISshService
     Task<bool> SftpCreateDirectoryAsync(string profileId, string path);
 
     // Generic Command Execution
-    Task<SshCommandResult> ExecuteCommandAsync(string profileId, string command, int timeoutSeconds = 60);
+    Task<SshCommandResult> ExecuteCommandAsync(string profileId, string command, int timeoutSeconds = 60, bool elevated = false);
 
     // Server Overview & Telemetry
     Task<SshServerOverview> GetServerOverviewAsync(string profileId);

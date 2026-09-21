@@ -166,10 +166,10 @@ public partial class MainWindow : Window
             RestoreWindow();
             PostWebMessage(new { type = "FOCUS_COMMAND_PALETTE" });
         });
-        var exitItem = new Forms.ToolStripMenuItem("Exit", null, (_, _) =>
+        var exitItem = new Forms.ToolStripMenuItem("Thoát DevDock", null, (_, _) =>
         {
-            _isRealExit = true;
-            Close();
+            RestoreWindow();
+            PostWebMessage(new { type = "REQUEST_EXIT_CONFIRM" });
         });
 
         menu.Items.Add(header);
@@ -226,7 +226,46 @@ public partial class MainWindow : Window
         WebViewControl.CoreWebView2.Settings.AreDevToolsEnabled = true;
         WebViewControl.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
 
+        // Intercept JavaScript alert/confirm dialogs so Chromium NEVER displays "127.0.0.1:38420 says"
+        WebViewControl.CoreWebView2.ScriptDialogOpening += (sender, args) =>
+        {
+            var deferral = args.GetDeferral();
+            try
+            {
+                if (args.Kind == CoreWebView2ScriptDialogKind.Confirm)
+                {
+                    var result = System.Windows.MessageBox.Show(
+                        this,
+                        args.Message,
+                        "DevDock",
+                        MessageBoxButton.OKCancel,
+                        MessageBoxImage.Question);
+
+                    if (result == MessageBoxResult.OK)
+                    {
+                        args.Accept();
+                    }
+                }
+                else if (args.Kind == CoreWebView2ScriptDialogKind.Alert)
+                {
+                    System.Windows.MessageBox.Show(
+                        this,
+                        args.Message,
+                        "DevDock",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    args.Accept();
+                }
+            }
+            finally
+            {
+                deferral.Complete();
+            }
+        };
+
         await WebViewControl.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(@"
+            window.confirm = function(msg) { return false; };
+            window.alert = function(msg) { };
             window.addEventListener('error', function(e) {
                 window.chrome.webview.postMessage(JSON.stringify({ type: 'LOG_ERROR', message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno, stack: e.error ? e.error.stack : '' }));
             });
@@ -298,6 +337,14 @@ public partial class MainWindow : Window
                 case "window:close":
                     Close();
                     break;
+                case "app:force-exit":
+                    _isRealExit = true;
+                    Close();
+                    break;
+                case "window:minimize-to-tray":
+                    Hide();
+                    _notifyIcon?.ShowBalloonTip(2000, "DevDock", "DevDock đang chạy ngầm trong khay hệ thống. Nhấn Ctrl+Space để mở lại.", Forms.ToolTipIcon.Info);
+                    break;
                 case "window:drag":
                     if (WindowState == WindowState.Maximized)
                     {
@@ -341,20 +388,19 @@ public partial class MainWindow : Window
 
     private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        var settingsSvc = _apiServer.Services?.GetService<ISettingsService>();
-        var settings = settingsSvc != null ? await settingsSvc.GetSettingsAsync() : new AppSettings();
-
-        if (!_isRealExit && settings.MinimizeToTray)
+        if (_isRealExit)
         {
-            e.Cancel = true;
-            Hide();
-            _notifyIcon?.ShowBalloonTip(2000, "DevDock", "DevDock is minimized to tray. Press Ctrl+Space to activate.", Forms.ToolTipIcon.Info);
+            UnregisterHotKey(_windowHandle, HOTKEY_ID);
+            _notifyIcon?.Dispose();
+            await _apiServer.StopAsync();
             return;
         }
 
-        UnregisterHotKey(_windowHandle, HOTKEY_ID);
-        _notifyIcon?.Dispose();
-        await _apiServer.StopAsync();
+        // Intercept close event (from taskbar right-click "Close window", Alt+F4, or TitleBar X)
+        // Prevent immediate close, restore/bring window to front, and request Exit Confirm Modal in React UI
+        e.Cancel = true;
+        RestoreWindow();
+        PostWebMessage(new { type = "REQUEST_EXIT_CONFIRM" });
     }
 
     public static void EnsureDesktopShortcut(bool overwrite = false)

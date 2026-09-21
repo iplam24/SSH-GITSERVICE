@@ -75,6 +75,7 @@ import {
   GitIgnoreInfo,
 } from '../types';
 import { api } from '../services/api';
+import { useConfirm } from '../context/ConfirmContext';
 
 type GitTab = 'changes' | 'history' | 'branches' | 'tags' | 'cloud';
 
@@ -99,6 +100,7 @@ export const GitPage: React.FC<GitPageProps> = ({
   onOpenTerminal,
   onShowToast,
 }) => {
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<GitTab>('changes');
   const [repoStatus, setRepoStatus] = useState<GitRepoStatus | null>(null);
   const [branches, setBranches] = useState<GitBranchItem[]>([]);
@@ -208,6 +210,19 @@ export const GitPage: React.FC<GitPageProps> = ({
   const [isSettingUpCicd, setIsSettingUpCicd] = useState(false);
   const [cicdResult, setCicdResult] = useState<GithubActionSetupResult | null>(null);
   const [copiedSecretKey, setCopiedSecretKey] = useState<string | null>(null);
+  const [isSyncingSecrets, setIsSyncingSecrets] = useState(false);
+  const [secretsSyncMessage, setSecretsSyncMessage] = useState<string | null>(null);
+
+  // Automated GitHub Release states
+  const [isCreateReleaseModalOpen, setIsCreateReleaseModalOpen] = useState(false);
+  const [releaseTagName, setReleaseTagName] = useState('v1.0.0');
+  const [releaseTitle, setReleaseTitle] = useState('DevDock v1.0.0 — Modern Developer Command Center');
+  const [releaseBody, setReleaseBody] = useState('');
+  const [releaseTargetBranch, setReleaseTargetBranch] = useState('main');
+  const [releaseDraft, setReleaseDraft] = useState(false);
+  const [releasePrerelease, setReleasePrerelease] = useState(false);
+  const [isCreatingRelease, setIsCreatingRelease] = useState(false);
+  const [releaseResultUrl, setReleaseResultUrl] = useState<string | null>(null);
 
   // Local Git Init states
   const [isInitRepoModalOpen, setIsInitRepoModalOpen] = useState(false);
@@ -240,6 +255,7 @@ export const GitPage: React.FC<GitPageProps> = ({
   const [isSavingGitIgnore, setIsSavingGitIgnore] = useState(false);
   const [gitIgnoreTemplates, setGitIgnoreTemplates] = useState<Record<string, string>>({});
   const [gitIgnoreAutoCommit, setGitIgnoreAutoCommit] = useState(false);
+  const [isAutoStageModalOpen, setIsAutoStageModalOpen] = useState(false);
 
   // Filter git projects
   const gitProjects = projects.filter((p) => p.isGitRepository);
@@ -469,13 +485,40 @@ export const GitPage: React.FC<GitPageProps> = ({
 
   const handleDiscardChanges = async (filePath: string) => {
     if (!activeRepoPath) return;
-    if (!confirm(`Hủy bỏ toàn bộ thay đổi trong '${filePath}'? Hành động này không thể hoàn tác.`)) return;
+    const ok = await confirm({
+      title: 'Hủy Bỏ Thay Đổi Tệp',
+      message: `Hủy bỏ toàn bộ thay đổi trong '${filePath}'? Hành động này không thể hoàn tác.`,
+      confirmText: 'Hủy Bỏ Thay Đổi',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.discardChanges(activeRepoPath, filePath);
       await loadRepoData(activeRepoPath);
       onShowToast(`Đã hủy thay đổi trong ${filePath}`, 'info');
     } catch (err: any) {
       onShowToast(err.message || 'Hủy thay đổi thất bại', 'error');
+    }
+  };
+
+  const handleConfirmAutoStageAndCommit = async () => {
+    setIsAutoStageModalOpen(false);
+    if (!activeRepoPath || !commitSubject.trim()) return;
+
+    try {
+      onShowToast('Đang tự động Stage tất cả các tệp thay đổi...', 'info');
+      await api.stageAll(activeRepoPath);
+
+      const fullMsg = commitBody.trim()
+        ? `${commitSubject.trim()}\n\n${commitBody.trim()}`
+        : commitSubject.trim();
+      await api.commit(activeRepoPath, fullMsg);
+      setCommitSubject('');
+      setCommitBody('');
+      await loadRepoData(activeRepoPath);
+      onShowToast('Đã tự động Stage và tạo commit thành công!', 'success');
+    } catch (err: any) {
+      onShowToast(err.message || 'Thao tác commit thất bại', 'error');
     }
   };
 
@@ -494,18 +537,9 @@ export const GitPage: React.FC<GitPageProps> = ({
         return;
       }
 
-      const confirmAutoStage = confirm(
-        'Chưa có tệp nào được đưa vào hàng đợi (Staged).\n\nBạn có muốn tự động Stage tất cả tệp thay đổi và tạo commit ngay không?'
-      );
-      if (!confirmAutoStage) return;
-
-      try {
-        onShowToast('Đang tự động Stage tất cả các tệp thay đổi...', 'info');
-        await api.stageAll(activeRepoPath);
-      } catch (err: any) {
-        onShowToast(err.message || 'Lỗi khi Stage tất cả tệp', 'error');
-        return;
-      }
+      // Mở modal in-app sang xịn mịn, không dùng window.confirm trình duyệt
+      setIsAutoStageModalOpen(true);
+      return;
     }
 
     try {
@@ -611,7 +645,13 @@ export const GitPage: React.FC<GitPageProps> = ({
   };
 
   const handleDeleteBranch = async (bName: string) => {
-    if (!confirm(`Xóa nhánh '${bName}'?`)) return;
+    const ok = await confirm({
+      title: 'Xóa Nhánh Git',
+      message: `Bạn có chắc chắn muốn xóa nhánh '${bName}'?`,
+      confirmText: 'Xóa Nhánh',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.deleteBranch(activeRepoPath, bName, true);
       await loadRepoData(activeRepoPath);
@@ -719,7 +759,13 @@ export const GitPage: React.FC<GitPageProps> = ({
   };
 
   const handleRemoveRemote = async (name: string) => {
-    if (!confirm(`Xóa remote '${name}'?`)) return;
+    const ok = await confirm({
+      title: 'Xóa Remote Git',
+      message: `Bạn có chắc chắn muốn xóa remote '${name}'?`,
+      confirmText: 'Xóa Remote',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.removeRemote(activeRepoPath, name);
       await loadRepoData(activeRepoPath);
@@ -754,7 +800,13 @@ export const GitPage: React.FC<GitPageProps> = ({
   };
 
   const handleDeleteTag = async (tagName: string) => {
-    if (!confirm(`Xóa tag '${tagName}'?`)) return;
+    const ok = await confirm({
+      title: 'Xóa Git Tag',
+      message: `Bạn có chắc chắn muốn xóa tag '${tagName}'?`,
+      confirmText: 'Xóa Tag',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.deleteTag(activeRepoPath, tagName);
       await loadRepoData(activeRepoPath);
@@ -788,7 +840,13 @@ export const GitPage: React.FC<GitPageProps> = ({
   };
 
   const handleDropStash = async (index: number) => {
-    if (!confirm(`Xóa bỏ vĩnh viễn stash@{${index}}?`)) return;
+    const ok = await confirm({
+      title: 'Xóa Git Stash',
+      message: `Bạn có chắc chắn muốn xóa bỏ vĩnh viễn stash@{${index}}?`,
+      confirmText: 'Xóa Vĩnh Viễn',
+      type: 'danger',
+    });
+    if (!ok) return;
     try {
       const res = await api.dropStash(activeRepoPath, index);
       await loadRepoData(activeRepoPath);
@@ -1065,6 +1123,123 @@ export const GitPage: React.FC<GitPageProps> = ({
     }
   };
 
+  const handleAutoSyncSecrets = async () => {
+    const accId = cicdAccountId || selectedAccountId;
+    let remote = cicdRemoteFullName;
+    if (!remote && remotes.length > 0) {
+      const origin = remotes.find((r) => r.name === 'origin') || remotes[0];
+      const remoteUrl = origin?.fetchUrl || origin?.pushUrl || '';
+      const m = remoteUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i);
+      if (m) remote = `${m[1]}/${m[2]}`;
+    }
+
+    if (!accId) {
+      onShowToast('Vui lòng chọn tài khoản GitHub trong phần cấu hình!', 'error');
+      return;
+    }
+    if (!remote) {
+      onShowToast('Không xác định được kho từ xa GitHub để đồng bộ Secrets!', 'error');
+      return;
+    }
+
+    setIsSyncingSecrets(true);
+    setSecretsSyncMessage(null);
+    try {
+      const secrets: Record<string, string> = {
+        SSH_HOST: cicdServerHost.trim(),
+        SSH_USER: cicdServerUser.trim(),
+        SSH_KEY: cicdServerProfileId ? `ssh_profile:${cicdServerProfileId}` : '',
+      };
+      if (cicdServerPort && cicdServerPort !== 22) {
+        secrets.SSH_PORT = String(cicdServerPort);
+      }
+
+      const res = await api.syncGithubSecrets({
+        accountId: accId,
+        remoteRepoFullName: remote,
+        secrets,
+      });
+
+      if (res.success) {
+        setSecretsSyncMessage(res.message);
+        onShowToast(res.message, 'success');
+      } else {
+        onShowToast(res.message || 'Lỗi khi đồng bộ Secrets', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi khi đồng bộ Secrets lên GitHub', 'error');
+    } finally {
+      setIsSyncingSecrets(false);
+    }
+  };
+
+  const handleGenerateReleaseNotes = () => {
+    if (commits.length === 0) {
+      setReleaseBody('### 🚀 Có gì mới trong phiên bản này:\n- Phát hành chính thức phiên bản DevDock');
+      return;
+    }
+    const recentCommits = commits.slice(0, 10);
+    const notes = [
+      `### 🚀 DevDock ${releaseTagName} Updates`,
+      '',
+      '#### ✨ Những thay đổi và tính năng nổi bật:',
+      ...recentCommits.map((c) => `- ${c.subject} (${c.hash.substring(0, 7)})`),
+      '',
+      '#### 📦 Tải về và cài đặt:',
+      '- **setup-devdock.exe**: Bộ cài đặt tự động cho Windows.',
+      '- **DevDock-Portable-win-x64.zip**: Bản chạy trực tiếp không cần cài đặt.',
+    ].join('\n');
+    setReleaseBody(notes);
+    onShowToast('Đã tự động tạo ghi chú Release từ các commit gần nhất!', 'success');
+  };
+
+  const handleCreateRelease = async () => {
+    if (!releaseTagName.trim()) {
+      onShowToast('Vui lòng nhập tên tag phiên bản (ví dụ v1.0.0)', 'error');
+      return;
+    }
+
+    setIsCreatingRelease(true);
+    setReleaseResultUrl(null);
+    try {
+      const activeRemote = remotes.find((r) => r.name === 'origin') || remotes[0];
+      let remoteFullName = cicdRemoteFullName;
+      const remoteUrl = activeRemote?.fetchUrl || activeRemote?.pushUrl || '';
+      if (!remoteFullName && remoteUrl) {
+        const m = remoteUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?/i);
+        if (m) remoteFullName = `${m[1]}/${m[2]}`;
+      }
+
+      const res = await api.createGithubRelease({
+        accountId: selectedAccountId || cicdAccountId,
+        repoPath: activeRepoPath,
+        remoteRepoFullName: remoteFullName,
+        tagName: releaseTagName.trim(),
+        targetBranch: releaseTargetBranch || 'main',
+        name: releaseTitle.trim() || releaseTagName.trim(),
+        body: releaseBody.trim(),
+        draft: releaseDraft,
+        prerelease: releasePrerelease,
+        generateReleaseNotes: true,
+        triggerCiCdWorkflow: true,
+      });
+
+      if (res.success) {
+        onShowToast(res.message, 'success');
+        if (res.releaseUrl) {
+          setReleaseResultUrl(res.releaseUrl);
+        }
+        await loadRepoData(activeRepoPath);
+      } else {
+        onShowToast(res.message || 'Lỗi khi tạo Release', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Thao tác tạo release thất bại', 'error');
+    } finally {
+      setIsCreatingRelease(false);
+    }
+  };
+
   // Handle local Git Init
   const handleInitLocalRepo = async () => {
     const target = initRepoPath.trim() || activeRepoPath;
@@ -1324,7 +1499,7 @@ export const GitPage: React.FC<GitPageProps> = ({
     : 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12] w-full h-full min-h-0">
       {/* Top Bar: Repo selector, Current Branch, Quick Push/Pull/Fetch */}
       <div className="h-11 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0 gap-2 overflow-x-auto select-none no-scrollbar">
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -1618,13 +1793,13 @@ export const GitPage: React.FC<GitPageProps> = ({
       </div>
 
       {/* VIEWPORT BASED ON ACTIVE TAB */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex min-h-0">
         {/* ==================== TAB 1: CHANGES ==================== */}
         {activeTab === 'changes' && (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden min-h-0">
             {/* Left Column: Changed Files List & Commit Box */}
-            <div className="w-72 md:w-80 xl:w-[360px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col justify-between flex-shrink-0 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+            <div className="w-72 md:w-80 xl:w-[360px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col justify-between flex-shrink-0 overflow-hidden min-h-0">
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 min-h-0 pr-1">
                 {/* Search Filter for Changed Files */}
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
@@ -1976,7 +2151,7 @@ export const GitPage: React.FC<GitPageProps> = ({
             </div>
 
             {/* Right Column: Diff Viewer */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
+            <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12] min-h-0">
               {selectedFile ? (
                 <>
                   {/* Diff Viewer Toolbar Header */}
@@ -2128,7 +2303,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <div className="flex-1 overflow-auto p-3 font-mono text-xs select-text">
+                    <div className="flex-1 overflow-auto p-3 font-mono text-xs select-text min-h-0">
                       {diffResult?.hunks && diffResult.hunks.length > 0 ? (
                         diffResult.hunks.map((hunk, hIdx) => (
                           <div
@@ -2287,9 +2462,9 @@ export const GitPage: React.FC<GitPageProps> = ({
 
         {/* ==================== TAB 2: HISTORY ==================== */}
         {activeTab === 'history' && (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden min-h-0">
             {/* Left: Commit list */}
-            <div className="w-[400px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col flex-shrink-0">
+            <div className="w-full md:w-[360px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col flex-shrink-0 md:flex-shrink-0 min-h-0">
               <div className="p-3 border-b border-[#1a1e2a] flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
@@ -2303,7 +2478,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto divide-y divide-[#1a1e2a]">
+              <div className="flex-1 overflow-y-auto divide-y divide-[#1a1e2a] min-h-0 pr-1">
                 {filteredCommits.map((c) => {
                   const isSelected = selectedCommitHash === c.hash;
                   return (
@@ -2340,9 +2515,9 @@ export const GitPage: React.FC<GitPageProps> = ({
             </div>
 
             {/* Right: Commit Inspector & Actions */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
+            <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12] min-h-0">
               {selectedCommitHash && commitDetails ? (
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Commit Inspector Header */}
                   <div className="p-4 border-b border-[#1a1e2a] bg-[#0e1017] flex flex-col gap-3 flex-shrink-0">
                     <div className="flex items-start justify-between">
@@ -2409,7 +2584,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                   </div>
 
                   {/* Inspector Diff Preview & Changed files */}
-                  <div className="flex-1 overflow-auto p-4 flex flex-col gap-4 select-text">
+                  <div className="flex-1 overflow-auto p-4 flex flex-col gap-4 select-text min-h-0">
                     <div className="bg-[#12151f] rounded-md border border-[#1e2332] overflow-hidden">
                       <div className="px-3 py-1.5 bg-[#0e1017] border-b border-[#1e2332] text-xs font-semibold text-slate-300">
                         Danh sách tệp thay đổi trong commit
@@ -2435,18 +2610,15 @@ export const GitPage: React.FC<GitPageProps> = ({
                     <div className="bg-[#0e1017] rounded-md border border-[#1e2332] p-3">
                       <div className="text-xs font-semibold text-slate-400 mb-2 font-mono">Full Patch Diff:</div>
                       <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
-                        {commitDetails.diff}
+                        {commitDetails.diff || 'Không có nội dung diff cho commit này'}
                       </pre>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
-                  <GitCommit className="w-10 h-10 mb-2 text-slate-600 stroke-1" />
-                  <p className="text-sm font-medium text-slate-400">Chọn commit từ danh sách để kiểm tra chi tiết</p>
-                  <p className="text-xs text-slate-600 max-w-sm mt-1">
-                    Xem toàn bộ patch, danh sách tệp sửa đổi, thống kê dòng thêm/bớt và thực hiện Cherry-pick, Revert hoặc Reset.
-                  </p>
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-2">
+                  <History className="w-12 h-12 text-slate-700 stroke-1" />
+                  <p className="text-xs font-medium">Chọn một commit từ danh sách bên trái để xem chi tiết</p>
                 </div>
               )}
             </div>
@@ -2455,7 +2627,7 @@ export const GitPage: React.FC<GitPageProps> = ({
 
         {/* ==================== TAB 3: BRANCHES & REMOTES ==================== */}
         {activeTab === 'branches' && (
-          <div className="flex-1 overflow-y-auto p-5 max-w-5xl mx-auto w-full flex flex-col gap-5">
+          <div className="flex-1 overflow-y-auto p-5 max-w-5xl mx-auto w-full flex flex-col gap-5 min-h-0 pr-1">
             {/* Section 1: Branches */}
             <div className="flex flex-col gap-3.5">
               <div className="flex items-center justify-between pb-3 border-b border-[#1a1e2a]">
@@ -2638,7 +2810,7 @@ export const GitPage: React.FC<GitPageProps> = ({
 
         {/* ==================== TAB 4: TAGS & STASHES ==================== */}
         {activeTab === 'tags' && (
-          <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full flex flex-col gap-6">
+          <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full flex flex-col gap-6 min-h-0 pr-1">
             {/* Tags Section */}
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between pb-3 border-b border-[#1E293B]">
@@ -2652,14 +2824,29 @@ export const GitPage: React.FC<GitPageProps> = ({
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsCreateTagModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent-hover text-white text-xs font-medium cursor-pointer shadow-sm transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Tạo Tag mới</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReleaseTagName(tags.length > 0 ? `v1.0.${tags.length}` : 'v1.0.0');
+                      setIsCreateReleaseModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold cursor-pointer shadow-md shadow-blue-600/20 transition-all whitespace-nowrap"
+                    title="Tự động tạo Release trên GitHub, kích hoạt GitHub Actions build installer và phát hành"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>⚡ Tự Động Tạo GitHub Release</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateTagModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#181d2a] hover:bg-[#202738] text-slate-300 border border-[#252e42] text-xs font-medium cursor-pointer shadow-sm transition-colors whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tạo Tag mới</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2795,7 +2982,7 @@ export const GitPage: React.FC<GitPageProps> = ({
 
         {/* ==================== TAB 5: CLOUD REPOSITORIES ==================== */}
         {activeTab === 'cloud' && (
-          <div className="flex-1 overflow-y-auto p-5 max-w-6xl mx-auto w-full flex flex-col gap-4">
+          <div className="flex-1 overflow-y-auto p-5 max-w-6xl mx-auto w-full flex flex-col gap-4 min-h-0 pr-1">
             {/* Header & Account Selection */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#1a1e2a]">
               <div>
@@ -3736,9 +3923,38 @@ export const GitPage: React.FC<GitPageProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-slate-400">
-                    Vui lòng thêm các khóa bí mật sau vào GitHub Repository để Workflow có thể SSH và triển khai mã nguồn lên máy chủ:
-                  </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <p className="text-[11px] text-slate-400">
+                      Workflow cần các khóa bí mật sau để có thể SSH và triển khai mã nguồn lên máy chủ:
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={handleAutoSyncSecrets}
+                      disabled={isSyncingSecrets}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
+                      title="Sử dụng GitHub API và mã hóa libsodium để tự động lưu các Secret này lên GitHub Repo"
+                    >
+                      {isSyncingSecrets ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Đang đẩy Secrets lên GitHub...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>⚡ Tự động đẩy tất cả Secrets lên GitHub</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {secretsSyncMessage && (
+                    <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{secretsSyncMessage}</span>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     {[
@@ -4793,6 +5009,260 @@ export const GitPage: React.FC<GitPageProps> = ({
                   <>
                     <Check className="w-4 h-4" />
                     <span>Lưu Tệp .gitignore Ngay</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Tự động Stage & Commit (Thay thế browser window.confirm localhost:38420) */}
+      {isAutoStageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 select-none">
+          <div className="w-full max-w-md bg-[#0e121d] border border-[#20283f] rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1b2236] bg-[#131826]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
+                  <GitCommit className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100">Tự động Stage & Tạo Commit</h3>
+                  <p className="text-[11px] text-slate-400">Git Working Tree</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAutoStageModalOpen(false)}
+                className="w-7 h-7 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 flex flex-col gap-3 text-xs text-slate-300">
+              <p className="text-slate-200 font-medium">
+                Chưa có tệp nào được đưa vào hàng đợi (<span className="text-emerald-400 font-semibold">Staged</span>).
+              </p>
+              <p className="text-slate-400 leading-relaxed">
+                Bạn có muốn tự động đưa tất cả <span className="text-slate-200 font-semibold">{((repoStatus?.unstagedFiles?.length ?? 0) + (repoStatus?.untrackedFiles?.length ?? 0))} tệp thay đổi</span> vào hàng đợi và tạo commit ngay bây giờ không?
+              </p>
+
+              {/* Commit Preview */}
+              <div className="p-3 rounded-lg bg-[#080b13] border border-[#1b2236] flex flex-col gap-1">
+                <span className="text-[10px] uppercase font-mono text-slate-500 font-semibold tracking-wider">
+                  Nội dung Commit:
+                </span>
+                <span className="text-xs font-mono text-slate-200 truncate">
+                  {commitSubject.trim()}
+                </span>
+                {commitBody.trim() && (
+                  <span className="text-[11px] font-mono text-slate-400 line-clamp-2 mt-0.5">
+                    {commitBody.trim()}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 border-t border-[#1b2236] bg-[#0b0e17] flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsAutoStageModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/5 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAutoStageAndCommit}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Stage tất cả & Tạo Commit</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Tự Động Tạo GitHub Release */}
+      {isCreateReleaseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 select-none">
+          <div className="w-full max-w-2xl bg-[#0e121d] border border-[#20283f] rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1b2236] bg-[#131826]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100">Tự Động Tạo GitHub Release & Build CI/CD</h3>
+                  <p className="text-[11px] text-slate-400">Tự động gắn Tag, kích hoạt GitHub Actions đóng gói .exe & .zip</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateReleaseModalOpen(false)}
+                className="w-7 h-7 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 flex flex-col gap-4 overflow-y-auto text-xs text-slate-300">
+              {releaseResultUrl && (
+                <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Release đã được khởi tạo thành công trên GitHub!</span>
+                    </div>
+                    <a
+                      href={releaseResultUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 underline font-medium"
+                    >
+                      <span>Xem trên GitHub</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                  <p className="text-[11px] text-emerald-400/90 leading-relaxed">
+                    Workflow GitHub Actions (<code className="bg-black/30 px-1 py-0.5 rounded text-slate-200">release.yml</code>) đang tự động chạy biên dịch và gắn tệp bộ cài đặt <code className="bg-black/30 px-1 py-0.5 rounded text-slate-200">setup-devdock.exe</code> và <code className="bg-black/30 px-1 py-0.5 rounded text-slate-200">Portable.zip</code> vào Release này.
+                  </p>
+                </div>
+              )}
+
+              {/* Tag & Branch */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Tên Tag Phiên Bản *</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={releaseTagName}
+                    onChange={(e) => setReleaseTagName(e.target.value)}
+                    placeholder="ví dụ: v1.0.0, v1.1.0..."
+                    className="w-full px-3 py-2 rounded-lg bg-[#080b13] border border-[#20283f] focus:border-blue-500 focus:outline-none text-slate-100 text-xs font-mono"
+                  />
+                  <span className="text-[10px] text-slate-500">Quy chuẩn SemVer (bắt đầu bằng ký tự 'v')</span>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
+                    <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Nhánh Mục Tiêu (Target Branch)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={releaseTargetBranch}
+                    onChange={(e) => setReleaseTargetBranch(e.target.value)}
+                    placeholder="main hoặc master"
+                    className="w-full px-3 py-2 rounded-lg bg-[#080b13] border border-[#20283f] focus:border-emerald-500 focus:outline-none text-slate-100 text-xs font-mono"
+                  />
+                  <span className="text-[10px] text-slate-500">Nhánh nguồn được chọn để gắn Tag phiên bản</span>
+                </div>
+              </div>
+
+              {/* Title */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium text-slate-300">Tiêu đề Bản Phát Hành (Release Title)</label>
+                <input
+                  type="text"
+                  value={releaseTitle}
+                  onChange={(e) => setReleaseTitle(e.target.value)}
+                  placeholder="Tiêu đề phiên bản nổi bật..."
+                  className="w-full px-3 py-2 rounded-lg bg-[#080b13] border border-[#20283f] focus:border-blue-500 focus:outline-none text-slate-100 text-xs"
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-medium text-slate-300">Ghi chú Phát hành (Release Notes - Markdown)</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateReleaseNotes}
+                    className="flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer font-medium hover:underline"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>✨ Tự động tạo từ các Commit gần nhất</span>
+                  </button>
+                </div>
+                <textarea
+                  rows={5}
+                  value={releaseBody}
+                  onChange={(e) => setReleaseBody(e.target.value)}
+                  placeholder="Chi tiết tính năng mới, sửa lỗi, hướng dẫn cài đặt..."
+                  className="w-full px-3 py-2 rounded-lg bg-[#080b13] border border-[#20283f] focus:border-blue-500 focus:outline-none text-slate-200 text-xs font-mono leading-relaxed"
+                />
+              </div>
+
+              {/* Checkboxes */}
+              <div className="flex flex-wrap gap-5 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-300 text-xs hover:text-slate-100">
+                  <input
+                    type="checkbox"
+                    checked={releaseDraft}
+                    onChange={(e) => setReleaseDraft(e.target.checked)}
+                    className="rounded bg-[#080b13] border-[#20283f] text-blue-500 focus:ring-0 focus:ring-offset-0"
+                  />
+                  <span>Bản nháp (Draft - chỉ mình bạn thấy trước khi publish)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-slate-300 text-xs hover:text-slate-100">
+                  <input
+                    type="checkbox"
+                    checked={releasePrerelease}
+                    onChange={(e) => setReleasePrerelease(e.target.checked)}
+                    className="rounded bg-[#080b13] border-[#20283f] text-amber-500 focus:ring-0 focus:ring-offset-0"
+                  />
+                  <span>Đánh dấu là Pre-release (Bản thử nghiệm Beta)</span>
+                </label>
+              </div>
+
+              {/* Auto Pipeline Callout */}
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/25 flex items-start gap-2.5">
+                <Zap className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-0.5 text-[11px] text-blue-300/90 leading-relaxed">
+                  <span className="font-semibold text-blue-200">Quy trình tự động hóa hoàn toàn:</span>
+                  <span>1. DevDock tạo Git Tag cục bộ và tự động <code className="text-white bg-black/30 px-1 py-0.2 rounded">git push origin {releaseTagName}</code> lên GitHub.</span>
+                  <span>2. Gọi GitHub REST API phát hành Release chính thức kèm Release Notes.</span>
+                  <span>3. GitHub Actions (<code className="text-white bg-black/30 px-1 py-0.2 rounded">release.yml</code>) lập tức kích hoạt runner Windows tự động biên dịch, tạo bộ cài đặt <strong className="text-white">setup-devdock.exe</strong> & <strong className="text-white">Portable.zip</strong> rồi tải lên trực tiếp Release!</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 border-t border-[#1b2236] bg-[#0b0e17] flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsCreateReleaseModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/5 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateRelease}
+                disabled={isCreatingRelease || !releaseTagName.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreatingRelease ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang tạo & đẩy Release...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>🚀 Xuất Bản Release Ngay</span>
                   </>
                 )}
               </button>

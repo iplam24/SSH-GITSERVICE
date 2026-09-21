@@ -2325,5 +2325,270 @@ Icon
 
         return Task.FromResult(templates);
     }
+
+    public async Task<SyncGithubSecretsResult> SyncGithubSecretsAsync(SyncGithubSecretsRequest request)
+    {
+        if (_settingsService == null || _credentialService == null || _httpClient == null)
+        {
+            return new SyncGithubSecretsResult
+            {
+                Success = false,
+                Message = "Dịch vụ xác thực GitHub chưa sẵn sàng."
+            };
+        }
+
+        try
+        {
+            var account = await _settingsService.GetGitAccountByIdAsync(request.AccountId);
+            var token = await _credentialService.GetSecretAsync($"git:account:{request.AccountId}:token");
+            if (account == null || string.IsNullOrWhiteSpace(token))
+            {
+                return new SyncGithubSecretsResult
+                {
+                    Success = false,
+                    Message = "Không tìm thấy token của tài khoản GitHub."
+                };
+            }
+
+            var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
+
+            // 1. Get repository public key for Actions Secrets encryption
+            var keyReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/repos/{request.RemoteRepoFullName}/actions/secrets/public-key");
+            keyReq.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+            keyReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            keyReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            var keyResp = await _httpClient.SendAsync(keyReq);
+            if (!keyResp.IsSuccessStatusCode)
+            {
+                var err = await keyResp.Content.ReadAsStringAsync();
+                return new SyncGithubSecretsResult
+                {
+                    Success = false,
+                    Message = $"Lỗi lấy public key từ GitHub ({keyResp.StatusCode}): {err}"
+                };
+            }
+
+            var keyJson = await keyResp.Content.ReadAsStringAsync();
+            using var keyDoc = JsonDocument.Parse(keyJson);
+            var keyId = keyDoc.RootElement.GetProperty("key_id").GetString()!;
+            var publicKeyBase64 = keyDoc.RootElement.GetProperty("key").GetString()!;
+            var publicKeyBytes = Convert.FromBase64String(publicKeyBase64);
+
+            var synced = new List<string>();
+            var failed = new List<string>();
+
+            // 2. Encrypt each secret with libsodium SealedPublicKeyBox and PUT to GitHub
+            foreach (var kvp in request.Secrets)
+            {
+                var secretName = kvp.Key.Trim();
+                var secretValue = kvp.Value?.Trim();
+                if (string.IsNullOrEmpty(secretName) || string.IsNullOrEmpty(secretValue)) continue;
+
+                try
+                {
+                    var secretBytes = Encoding.UTF8.GetBytes(secretValue);
+                    var encryptedBytes = Sodium.SealedPublicKeyBox.Create(secretBytes, publicKeyBytes);
+                    var encryptedBase64 = Convert.ToBase64String(encryptedBytes);
+
+                    var putPayload = new
+                    {
+                        encrypted_value = encryptedBase64,
+                        key_id = keyId
+                    };
+
+                    var putReq = new HttpRequestMessage(HttpMethod.Put, $"{baseUrl}/repos/{request.RemoteRepoFullName}/actions/secrets/{secretName}")
+                    {
+                        Content = new StringContent(JsonSerializer.Serialize(putPayload), Encoding.UTF8, "application/json")
+                    };
+                    putReq.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+                    putReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    putReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+                    var putResp = await _httpClient.SendAsync(putReq);
+                    if (putResp.IsSuccessStatusCode)
+                    {
+                        synced.Add(secretName);
+                    }
+                    else
+                    {
+                        failed.Add(secretName);
+                    }
+                }
+                catch
+                {
+                    failed.Add(secretName);
+                }
+            }
+
+            return new SyncGithubSecretsResult
+            {
+                Success = synced.Count > 0,
+                SyncedSecrets = synced,
+                FailedSecrets = failed,
+                Message = failed.Count == 0
+                    ? $"Đã tự động đẩy thành công toàn bộ {synced.Count} Secrets ({string.Join(", ", synced)}) lên GitHub Repository '{request.RemoteRepoFullName}'!"
+                    : $"Đã đồng bộ {synced.Count} Secrets ({string.Join(", ", synced)}), {failed.Count} Secrets thất bại."
+            };
+        }
+        catch (Exception ex)
+        {
+            return new SyncGithubSecretsResult
+            {
+                Success = false,
+                Message = $"Lỗi khi đồng bộ Secrets: {ex.Message}"
+            };
+        }
+    }
+
+    public async Task<CreateGithubReleaseResult> CreateGithubReleaseAsync(CreateGithubReleaseRequest request)
+    {
+        try
+        {
+            var tag = request.TagName.Trim();
+            if (string.IsNullOrEmpty(tag))
+            {
+                return new CreateGithubReleaseResult { Success = false, Message = "Vui lòng nhập tên phiên bản (tag name, ví dụ v1.0.0)" };
+            }
+
+            // 1. Create Git tag locally and push to remote if local repoPath is valid
+            if (!string.IsNullOrWhiteSpace(request.RepoPath) && Directory.Exists(request.RepoPath))
+            {
+                var releaseTitle = string.IsNullOrWhiteSpace(request.Name) ? tag : request.Name.Trim();
+                await RunGitAsync(request.RepoPath, $"tag -a \"{tag}\" -m \"{releaseTitle}\"");
+                await RunGitAsync(request.RepoPath, $"push origin \"{tag}\"");
+            }
+
+            // 2. Call GitHub REST API to publish release
+            if (!string.IsNullOrWhiteSpace(request.AccountId) &&
+                !string.IsNullOrWhiteSpace(request.RemoteRepoFullName) &&
+                _settingsService != null && _credentialService != null && _httpClient != null)
+            {
+                var account = await _settingsService.GetGitAccountByIdAsync(request.AccountId);
+                var token = await _credentialService.GetSecretAsync($"git:account:{request.AccountId}:token");
+                if (account != null && !string.IsNullOrWhiteSpace(token))
+                {
+                    var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
+                    var payload = new
+                    {
+                        tag_name = tag,
+                        target_commitish = string.IsNullOrWhiteSpace(request.TargetBranch) ? "main" : request.TargetBranch.Trim(),
+                        name = string.IsNullOrWhiteSpace(request.Name) ? tag : request.Name.Trim(),
+                        body = request.Body?.Trim() ?? string.Empty,
+                        draft = request.Draft,
+                        prerelease = request.Prerelease,
+                        generate_release_notes = request.GenerateReleaseNotes
+                    };
+
+                    var relReq = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/repos/{request.RemoteRepoFullName}/releases")
+                    {
+                        Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+                    };
+                    relReq.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+                    relReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    relReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+                    var relResp = await _httpClient.SendAsync(relReq);
+                    if (relResp.IsSuccessStatusCode)
+                    {
+                        var relJson = await relResp.Content.ReadAsStringAsync();
+                        using var doc = JsonDocument.Parse(relJson);
+                        var htmlUrl = doc.RootElement.GetProperty("html_url").GetString();
+                        return new CreateGithubReleaseResult
+                        {
+                            Success = true,
+                            TagName = tag,
+                            ReleaseUrl = htmlUrl,
+                            Message = $"Đã xuất bản thành công bản phát hành GitHub Release '{tag}' tại {htmlUrl}!"
+                        };
+                    }
+                    else
+                    {
+                        var err = await relResp.Content.ReadAsStringAsync();
+                        return new CreateGithubReleaseResult
+                        {
+                            Success = false,
+                            Message = $"Lỗi GitHub API khi tạo Release ({relResp.StatusCode}): {err}"
+                        };
+                    }
+                }
+            }
+
+            return new CreateGithubReleaseResult
+            {
+                Success = true,
+                TagName = tag,
+                Message = $"Đã tạo và đẩy tag '{tag}' lên kho lưu trữ thành công!"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new CreateGithubReleaseResult
+            {
+                Success = false,
+                Message = $"Lỗi khi tạo Release: {ex.Message}"
+            };
+        }
+    }
+
+    public async Task<List<GithubReleaseItem>> GetGithubReleasesAsync(string accountId, string remoteRepoFullName)
+    {
+        var result = new List<GithubReleaseItem>();
+        if (_settingsService == null || _credentialService == null || _httpClient == null) return result;
+
+        try
+        {
+            var account = await _settingsService.GetGitAccountByIdAsync(accountId);
+            var token = await _credentialService.GetSecretAsync($"git:account:{accountId}:token");
+            if (account == null || string.IsNullOrWhiteSpace(token)) return result;
+
+            var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
+            var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/repos/{remoteRepoFullName}/releases?per_page=20");
+            req.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            var resp = await _httpClient.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return result;
+
+            var json = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                var rel = new GithubReleaseItem
+                {
+                    Id = el.GetProperty("id").GetInt64(),
+                    TagName = el.GetProperty("tag_name").GetString() ?? "",
+                    Name = el.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "",
+                    Body = el.TryGetProperty("body", out var b) && b.ValueKind == JsonValueKind.String ? b.GetString() ?? "" : "",
+                    Draft = el.TryGetProperty("draft", out var dr) && dr.GetBoolean(),
+                    Prerelease = el.TryGetProperty("prerelease", out var pr) && pr.GetBoolean(),
+                    HtmlUrl = el.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "",
+                    CreatedAt = el.TryGetProperty("created_at", out var ca) && DateTime.TryParse(ca.GetString(), out var dt) ? dt : DateTime.UtcNow
+                };
+
+                if (el.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var a in assets.EnumerateArray())
+                    {
+                        rel.Assets.Add(new GithubReleaseAssetItem
+                        {
+                            Id = a.GetProperty("id").GetInt64(),
+                            Name = a.GetProperty("name").GetString() ?? "",
+                            Size = a.TryGetProperty("size", out var s) ? s.GetInt64() : 0,
+                            DownloadCount = a.TryGetProperty("download_count", out var dc) ? dc.GetInt32() : 0,
+                            BrowserDownloadUrl = a.TryGetProperty("browser_download_url", out var du) ? du.GetString() ?? "" : ""
+                        });
+                    }
+                }
+
+                result.Add(rel);
+            }
+        }
+        catch { }
+
+        return result;
+    }
 }
 

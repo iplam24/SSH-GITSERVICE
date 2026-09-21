@@ -389,3 +389,63 @@ public class AddToGitIgnoreRequest
     public string Pattern { get; set; } = string.Empty;
     public bool AutoCommit { get; set; } = false;
 }
+
+public class SyncGithubSecretsRequest
+{
+    public string AccountId { get; set; } = string.Empty;
+    public string RemoteRepoFullName { get; set; } = string.Empty;
+    public Dictionary<string, string> Secrets { get; set; } = new();
+}
+
+public class SyncGithubSecretsResult
+{
+    public bool Success { get; set; }
+    public List<string> SyncedSecrets { get; set; } = new();
+    public List<string> FailedSecrets { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
+}
+
+public class GithubReleaseItem
+{
+    public long Id { get; set; }
+    public string TagName { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public bool Draft { get; set; }
+    public bool Prerelease { get; set; }
+    public string HtmlUrl { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public List<GithubReleaseAssetItem> Assets { get; set; } = new();
+}
+
+public class GithubReleaseAssetItem
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public int DownloadCount { get; set; }
+    public string BrowserDownloadUrl { get; set; } = string.Empty;
+}
+
+public class CreateGithubReleaseRequest
+{
+    public string? AccountId { get; set; }
+    public string RepoPath { get; set; } = string.Empty;
+    public string RemoteRepoFullName { get; set; } = string.Empty;
+    public string TagName { get; set; } = string.Empty;
+    public string TargetBranch { get; set; } = "main";
+    public string Name { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public bool Draft { get; set; } = false;
+    public bool Prerelease { get; set; } = false;
+    public bool GenerateReleaseNotes { get; set; } = true;
+    public bool TriggerCiCdWorkflow { get; set; } = true;
+}
+
+public class CreateGithubReleaseResult
+{
+    public bool Success { get; set; }
+    public string? ReleaseUrl { get; set; }
+    public string? TagName { get; set; }
+    public string Message { get; set; } = string.Empty;
+}

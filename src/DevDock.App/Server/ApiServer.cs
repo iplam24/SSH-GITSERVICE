@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -180,6 +181,12 @@ public class ApiServer
             return Results.Ok();
         });
 
+        api.MapPost("/projects/open-terminal", async (PathRequest req, IProjectService svc) =>
+        {
+            await svc.OpenInTerminalAsync(req.Path);
+            return Results.Ok(new { success = true });
+        });
+
         api.MapPost("/system/browse-folder", async (HttpContext ctx) =>
         {
             string? initialPath = null;
@@ -242,6 +249,22 @@ public class ApiServer
             }
 
             return Results.Ok(new { folder = selectedFolder, canceled = string.IsNullOrEmpty(selectedFolder) });
+        });
+
+        api.MapPost("/system/open-url", (OpenUrlRequest req) =>
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(req.Url))
+                {
+                    Process.Start(new ProcessStartInfo(req.Url) { UseShellExecute = true });
+                }
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
         });
 
         // ------------------ GIT ------------------
@@ -521,6 +544,39 @@ public class ApiServer
         api.MapGet("/git/gitignore/templates", async (IGitService svc) =>
             Results.Ok(await svc.GetGitIgnoreTemplatesAsync()));
 
+        api.MapPost("/git/secrets/sync", async (SyncGithubSecretsRequest req, IGitService svc, ICredentialService creds, ISshService sshSvc) =>
+        {
+            // Auto-resolve SSH_KEY from DPAPI or PrivateKeyPath if SshProfileId is indicated
+            if (req.Secrets.TryGetValue("SSH_KEY", out var keyPlaceholder))
+            {
+                var profId = keyPlaceholder.StartsWith("ssh_profile:") ? keyPlaceholder.Substring("ssh_profile:".Length).Trim() : "";
+                if (!string.IsNullOrEmpty(profId))
+                {
+                    var keyContent = await creds.GetSecretAsync($"ssh:{profId}:key");
+                    if (!string.IsNullOrEmpty(keyContent))
+                    {
+                        req.Secrets["SSH_KEY"] = keyContent;
+                    }
+                    else
+                    {
+                        var prof = await sshSvc.GetProfileByIdAsync(profId);
+                        if (!string.IsNullOrEmpty(prof?.PrivateKeyPath) && File.Exists(prof.PrivateKeyPath))
+                        {
+                            req.Secrets["SSH_KEY"] = await File.ReadAllTextAsync(prof.PrivateKeyPath);
+                        }
+                    }
+                }
+            }
+
+            return Results.Ok(await svc.SyncGithubSecretsAsync(req));
+        });
+
+        api.MapPost("/git/releases/create", async (CreateGithubReleaseRequest req, IGitService svc) =>
+            Results.Ok(await svc.CreateGithubReleaseAsync(req)));
+
+        api.MapGet("/git/releases", async (string accountId, string remoteRepoFullName, IGitService svc) =>
+            Results.Ok(await svc.GetGithubReleasesAsync(accountId, remoteRepoFullName)));
+
         // ------------------ SSH ------------------
         api.MapGet("/ssh/profiles", async (ISshService svc) =>
             Results.Ok(await svc.GetAllProfilesAsync()));
@@ -675,7 +731,7 @@ public class ApiServer
         {
             try
             {
-                var res = await svc.ExecuteCommandAsync(id, req.Command, req.TimeoutSeconds <= 0 ? 60 : req.TimeoutSeconds);
+                var res = await svc.ExecuteCommandAsync(id, req.Command, req.TimeoutSeconds <= 0 ? 60 : req.TimeoutSeconds, req.Elevated);
                 return Results.Ok(res);
             }
             catch (Exception ex)
@@ -1157,7 +1213,7 @@ public record CreateTerminalRequest(TerminalShellType ShellType, string? Working
 public record CloseTerminalRequest(string SessionId);
 public record SshConnectTerminalRequest(string ProfileId, int Cols = 80, int Rows = 24);
 public record HttpRequestProxyModel(string Method, string Url, Dictionary<string, string>? Headers, string? Body, string? ContentType);
-public record SshExecCommandRequest(string Command, int TimeoutSeconds = 60);
+public record SshExecCommandRequest(string Command, int TimeoutSeconds = 60, bool Elevated = false);
 public record SshKillProcessRequest(int Pid, bool Force = true);
 public record SshProcessActionRequest(string Type, string ProcessNameOrId, string Action);
 public record SshCreateSystemdRequest(string ServiceName, string ExecStart, string WorkingDir, string User = "root", string? EnvVars = null);
@@ -1167,3 +1223,4 @@ public record SshCheckDomainsRequest(List<string> Domains);
 public record SshServerGitCloneRequest(string RepoUrl, string TargetDir, string Branch = "main");
 public record SshServerGitPullRequest(string TargetDir, string? Branch = "main", string? PostDeployCommand = null);
 public record SshServerGitStatusRequest(string TargetDir);
+public record OpenUrlRequest(string? Url);

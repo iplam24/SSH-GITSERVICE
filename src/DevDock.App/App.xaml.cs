@@ -49,6 +49,16 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            File.AppendAllText(logPath, $"[{DateTime.Now:O}] UnhandledException: {args.ExceptionObject}\n");
+        };
+
+        DispatcherUnhandledException += (s, args) =>
+        {
+            File.AppendAllText(logPath, $"[{DateTime.Now:O}] DispatcherUnhandledException: {args.Exception}\n");
+        };
+
         base.OnStartup(e);
         File.AppendAllText(logPath, $"[{DateTime.Now:O}] base.OnStartup completed.\n");
 
@@ -74,6 +84,9 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        var logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DevDock", "devdock_startup.log");
+        File.AppendAllText(logPath, $"[{DateTime.Now:O}] App.OnExit called with ExitCode: {e.ApplicationExitCode}\n");
+
         if (_mutex != null)
         {
             try
