@@ -1,0 +1,398 @@
+using System.Drawing;
+using System.IO;
+using System.Net.Http;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Interop;
+using DevDock.App.Server;
+using DevDock.Core.Models;
+using DevDock.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Web.WebView2.Core;
+using Forms = System.Windows.Forms;
+
+namespace DevDock.App;
+
+public partial class MainWindow : Window
+{
+    private const int HOTKEY_ID = 9001;
+    private const uint MOD_CONTROL = 0x0002;
+    private const uint MOD_NOREPEAT = 0x4000;
+    private const uint VK_SPACE = 0x20;
+    private const int WM_HOTKEY = 0x0312;
+
+    [DllImport("user32.dll")]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern int RegisterWindowMessage(string lpString);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+    private readonly ApiServer _apiServer = new();
+    private Forms.NotifyIcon? _notifyIcon;
+    private IntPtr _windowHandle;
+    private int _wmShowDevDock;
+    private bool _isRealExit;
+
+    private readonly SplashScreenWindow? _splash;
+
+    public MainWindow(SplashScreenWindow? splash = null)
+    {
+        _splash = splash;
+        Opacity = 0;
+        ShowInTaskbar = false;
+        InitializeComponent();
+        try
+        {
+            var icoPath = Path.Combine(AppContext.BaseDirectory, "app.ico");
+            if (File.Exists(icoPath))
+            {
+                Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(icoPath, UriKind.Absolute));
+            }
+        }
+        catch { }
+        Closing += OnClosing;
+    }
+
+    private static void Log(string msg)
+    {
+        try
+        {
+            var logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DevDock", "devdock_startup.log");
+            File.AppendAllText(logPath, $"[{DateTime.Now:O}] {msg}\n");
+        }
+        catch { }
+    }
+
+    public async Task InitializeAppAsync()
+    {
+        Log("MainWindow.InitializeAppAsync started.");
+        try
+        {
+            // Show window invisibly (Opacity=0, ShowInTaskbar=false) behind Topmost Splash Screen
+            // so WPF attaches the visual tree and builds the WebView2 HwndHost child window!
+            Show();
+
+            _windowHandle = new WindowInteropHelper(this).Handle;
+
+            // Register message to activate DevDock when another instance launches
+            _wmShowDevDock = RegisterWindowMessage("DevDock_Show_Window_Message");
+
+            // Enable Windows 11 / 10 immersive dark mode frame
+            int darkMode = 1;
+            DwmSetWindowAttribute(_windowHandle, 20, ref darkMode, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
+
+            _splash?.UpdateStatus("Đang đăng ký phím tắt & khay hệ thống...", 35);
+
+            // Register Global Hotkey (Ctrl + Space)
+            var source = HwndSource.FromHwnd(_windowHandle);
+            source?.AddHook(HwndHook);
+            RegisterHotKey(_windowHandle, HOTKEY_ID, MOD_CONTROL | MOD_NOREPEAT, VK_SPACE);
+
+            // Setup System Tray
+            SetupNotifyIcon();
+
+            // Auto-create Desktop Shortcut if not present
+            EnsureDesktopShortcut();
+
+            // Start embedded API Server
+            _splash?.UpdateStatus("Đang khởi chạy lõi API Server...", 55);
+            Log("Starting API Server...");
+            await _apiServer.StartAsync();
+            Log($"API Server started on {_apiServer.BaseUrl}");
+
+            // Initialize WebView2
+            _splash?.UpdateStatus("Đang nạp môi trường WebView2...", 75);
+            Log("Initializing WebView2...");
+            await InitializeWebViewAsync();
+            Log("WebView2 initialization completed.");
+
+            _splash?.UpdateStatus("Đang tải không gian làm việc...", 95);
+            await Task.Delay(250);
+
+            _splash?.UpdateStatus("Sẵn sàng!", 100);
+            await Task.Delay(250);
+
+            // Make MainWindow visible, show in taskbar, and bring to front
+            ShowInTaskbar = true;
+            Opacity = 1.0;
+            Activate();
+            SetForegroundWindow(_windowHandle);
+
+            // Close splash window
+            if (_splash != null)
+            {
+                await _splash.FadeOutAndCloseAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"MainWindow.InitializeAppAsync error: {ex}");
+            _splash?.Close();
+            System.Windows.MessageBox.Show($"DevDock initialization error:\n\n{ex.Message}\n\n{ex.StackTrace}", "DevDock Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void SetupNotifyIcon()
+    {
+        Icon appIcon = SystemIcons.Application;
+        var icoPath = Path.Combine(AppContext.BaseDirectory, "app.ico");
+        if (File.Exists(icoPath))
+        {
+            try { appIcon = new Icon(icoPath); } catch { }
+        }
+
+        _notifyIcon = new Forms.NotifyIcon
+        {
+            Text = "DevDock — Developer Command Center",
+            Visible = true,
+            Icon = appIcon
+        };
+
+        var menu = new Forms.ContextMenuStrip();
+        var header = new Forms.ToolStripMenuItem("⚡ DevDock") { Enabled = false };
+        var openItem = new Forms.ToolStripMenuItem("Open DevDock", null, (_, _) => RestoreWindow());
+        var paletteItem = new Forms.ToolStripMenuItem("Command Palette (Ctrl+Shift+P)", null, (_, _) =>
+        {
+            RestoreWindow();
+            PostWebMessage(new { type = "FOCUS_COMMAND_PALETTE" });
+        });
+        var exitItem = new Forms.ToolStripMenuItem("Exit", null, (_, _) =>
+        {
+            _isRealExit = true;
+            Close();
+        });
+
+        menu.Items.Add(header);
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add(openItem);
+        menu.Items.Add(paletteItem);
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add(exitItem);
+
+        _notifyIcon.ContextMenuStrip = menu;
+        _notifyIcon.DoubleClick += (_, _) => RestoreWindow();
+    }
+
+    private void RestoreWindow()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+        Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
+        SetForegroundWindow(_windowHandle);
+    }
+
+    private async Task InitializeWebViewAsync()
+    {
+        var userDataFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "DevDock",
+            "WebView2Profile");
+        Directory.CreateDirectory(userDataFolder);
+
+        try
+        {
+            Log($"Attempting primary WebView2 profile at: {userDataFolder}");
+            var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
+            await WebViewControl.EnsureCoreWebView2Async(env);
+            Log("Primary WebView2 profile successfully initialized.");
+        }
+        catch (Exception ex)
+        {
+            Log($"Primary WebView2 profile failed ({ex.Message}), switching to process temp profile...");
+            var fallbackFolder = Path.Combine(Path.GetTempPath(), "DevDock_WV2_" + Environment.ProcessId);
+            Directory.CreateDirectory(fallbackFolder);
+            var env = await CoreWebView2Environment.CreateAsync(null, fallbackFolder);
+            await WebViewControl.EnsureCoreWebView2Async(env);
+            Log("Fallback WebView2 profile successfully initialized.");
+        }
+
+        WebViewControl.CoreWebView2.Settings.IsStatusBarEnabled = false;
+        WebViewControl.CoreWebView2.Settings.AreDevToolsEnabled = true;
+        WebViewControl.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+
+        await WebViewControl.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(@"
+            window.addEventListener('error', function(e) {
+                window.chrome.webview.postMessage(JSON.stringify({ type: 'LOG_ERROR', message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno, stack: e.error ? e.error.stack : '' }));
+            });
+            window.addEventListener('unhandledrejection', function(e) {
+                window.chrome.webview.postMessage(JSON.stringify({ type: 'LOG_ERROR', message: 'Unhandled Promise: ' + (e.reason ? (e.reason.stack || e.reason) : '') }));
+            });
+            const _origErr = console.error;
+            console.error = function(...args) {
+                _origErr.apply(console, args);
+                window.chrome.webview.postMessage(JSON.stringify({ type: 'LOG_CONSOLE_ERROR', message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }));
+            };
+        ");
+
+        WebViewControl.CoreWebView2.NavigationCompleted += async (s, e) =>
+        {
+            Log($"NavigationCompleted: IsSuccess={e.IsSuccess}, WebErrorStatus={e.WebErrorStatus}");
+            try
+            {
+                var html = await WebViewControl.CoreWebView2.ExecuteScriptAsync("document.documentElement.outerHTML");
+                Log($"DOM Length: {html?.Length ?? 0}");
+                var rootContent = await WebViewControl.CoreWebView2.ExecuteScriptAsync("document.getElementById('root')?.innerHTML");
+                Log($"#root innerHTML length: {rootContent?.Length ?? 0}");
+            }
+            catch (Exception ex)
+            {
+                Log($"ExecuteScriptAsync error: {ex.Message}");
+            }
+        };
+
+        // Check if Vite Dev Server is alive on localhost:5173
+        bool viteRunning = false;
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(500) };
+            var res = await client.GetAsync("http://localhost:5173");
+            viteRunning = res.IsSuccessStatusCode;
+        }
+        catch { }
+
+        var targetUrl = viteRunning ? "http://localhost:5173" : $"{_apiServer.BaseUrl}/index.html";
+        Log($"Navigating WebView2 to {targetUrl}");
+        WebViewControl.CoreWebView2.Navigate(targetUrl);
+    }
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            var raw = e.TryGetWebMessageAsString();
+            if (string.IsNullOrWhiteSpace(raw)) return;
+
+            using var doc = JsonDocument.Parse(raw);
+            if (!doc.RootElement.TryGetProperty("type", out var typeProp)) return;
+
+            var type = typeProp.GetString();
+            if (type == "LOG_ERROR" || type == "LOG_CONSOLE_ERROR")
+            {
+                Log($"JS ERROR: {raw}");
+                return;
+            }
+            switch (type)
+            {
+                case "window:minimize":
+                    WindowState = WindowState.Minimized;
+                    break;
+                case "window:maximize":
+                    WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                    break;
+                case "window:close":
+                    Close();
+                    break;
+                case "window:drag":
+                    if (WindowState == WindowState.Maximized)
+                    {
+                        WindowState = WindowState.Normal;
+                    }
+                    DragMove();
+                    break;
+            }
+        }
+        catch { }
+    }
+
+    public void PostWebMessage(object payload)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(payload);
+            WebViewControl.CoreWebView2?.PostWebMessageAsString(json);
+        }
+        catch { }
+    }
+
+    private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (_wmShowDevDock != 0 && msg == _wmShowDevDock)
+        {
+            RestoreWindow();
+            handled = true;
+            return IntPtr.Zero;
+        }
+
+        if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
+        {
+            // Global Hotkey (Ctrl + Space) pressed
+            RestoreWindow();
+            PostWebMessage(new { type = "FOCUS_COMMAND_PALETTE" });
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        var settingsSvc = _apiServer.Services?.GetService<ISettingsService>();
+        var settings = settingsSvc != null ? await settingsSvc.GetSettingsAsync() : new AppSettings();
+
+        if (!_isRealExit && settings.MinimizeToTray)
+        {
+            e.Cancel = true;
+            Hide();
+            _notifyIcon?.ShowBalloonTip(2000, "DevDock", "DevDock is minimized to tray. Press Ctrl+Space to activate.", Forms.ToolTipIcon.Info);
+            return;
+        }
+
+        UnregisterHotKey(_windowHandle, HOTKEY_ID);
+        _notifyIcon?.Dispose();
+        await _apiServer.StopAsync();
+    }
+
+    public static void EnsureDesktopShortcut(bool overwrite = false)
+    {
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrEmpty(desktop) || !Directory.Exists(desktop))
+            {
+                desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            }
+            if (string.IsNullOrEmpty(desktop) || !Directory.Exists(desktop)) return;
+
+            var shortcutPath = Path.Combine(desktop, "DevDock.lnk");
+            if (!overwrite && File.Exists(shortcutPath)) return;
+
+            var currentExe = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrEmpty(currentExe) || !File.Exists(currentExe)) return;
+
+            var workingDir = AppDomain.CurrentDomain.BaseDirectory;
+            var iconPath = Path.Combine(workingDir, "app.ico");
+            if (!File.Exists(iconPath))
+            {
+                iconPath = currentExe;
+            }
+
+            var wshType = Type.GetTypeFromProgID("WScript.Shell");
+            if (wshType != null)
+            {
+                dynamic wshShell = Activator.CreateInstance(wshType)!;
+                dynamic shortcut = wshShell.CreateShortcut(shortcutPath);
+                shortcut.TargetPath = currentExe;
+                shortcut.WorkingDirectory = workingDir;
+                shortcut.IconLocation = iconPath;
+                shortcut.Description = "DevDock — Modern Developer Command Center";
+                shortcut.Save();
+            }
+        }
+        catch { }
+    }
+}

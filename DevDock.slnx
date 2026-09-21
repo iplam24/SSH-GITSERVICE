@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DevDock.App/DevDock.App.csproj" />
+    <Project Path="src/DevDock.Core/DevDock.Core.csproj" />
+    <Project Path="src/DevDock.Git/DevDock.Git.csproj" />
+    <Project Path="src/DevDock.Installer/DevDock.Installer.csproj" />
+    <Project Path="src/DevDock.Plugins/DevDock.Plugins.csproj" />
+    <Project Path="src/DevDock.Projects/DevDock.Projects.csproj" />
+    <Project Path="src/DevDock.Security/DevDock.Security.csproj" />
+    <Project Path="src/DevDock.Settings/DevDock.Settings.csproj" />
+    <Project Path="src/DevDock.SSH/DevDock.SSH.csproj" />
+    <Project Path="src/DevDock.Terminal/DevDock.Terminal.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DevDock.Tests/DevDock.Tests.csproj" />
+  </Folder>
+</Solution>

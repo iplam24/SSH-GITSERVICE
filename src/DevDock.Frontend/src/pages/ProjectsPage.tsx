@@ -1,0 +1,499 @@
+import React, { useState } from 'react';
+import {
+  FolderGit2,
+  Plus,
+  Play,
+  Hammer,
+  TestTube,
+  ExternalLink,
+  Terminal,
+  Trash2,
+  Star,
+  Code2,
+  X,
+  Search,
+  Check,
+  AlertCircle,
+} from 'lucide-react';
+import { ProjectItem } from '../types';
+import { api } from '../services/api';
+
+interface ProjectsPageProps {
+  projects: ProjectItem[];
+  onRefreshProjects: () => void;
+  onOpenTerminalForProject: (p: ProjectItem) => void;
+  onOpenGitForProject: (p: ProjectItem) => void;
+  onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+}
+
+export const ProjectsPage: React.FC<ProjectsPageProps> = ({
+  projects,
+  onRefreshProjects,
+  onOpenTerminalForProject,
+  onOpenGitForProject,
+  onShowToast,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [inputPath, setInputPath] = useState('');
+  const [detecting, setDetecting] = useState(false);
+  const [newProject, setNewProject] = useState<Partial<ProjectItem>>({
+    name: '',
+    path: '',
+    commands: { dev: '', build: '', test: '' },
+    tags: [],
+    favorite: false,
+  });
+
+  // Runner state
+  const [runningCmd, setRunningCmd] = useState<{ projectId: string; cmdKey: string } | null>(null);
+  const [cmdOutput, setCmdOutput] = useState<{ title: string; output: string; success: boolean } | null>(null);
+
+  const filteredProjects = projects.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const handleDetectPath = async () => {
+    if (!inputPath.trim()) return;
+    setDetecting(true);
+    try {
+      const detected = await api.detectProject(inputPath.trim());
+      setNewProject(detected);
+      onShowToast(`Đã nhận diện dự án '${detected.name}'`, 'info');
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể quét nhận diện dự án tại đường dẫn này', 'error');
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const handleSaveProject = async () => {
+    if (!newProject.name || !newProject.path) {
+      onShowToast('Vui lòng nhập Tên dự án và Đường dẫn thư mục', 'error');
+      return;
+    }
+
+    try {
+      await api.saveProject(newProject);
+      setIsAddModalOpen(false);
+      setInputPath('');
+      setNewProject({ name: '', path: '', commands: {}, tags: [], favorite: false });
+      onRefreshProjects();
+      onShowToast('Đã lưu dự án thành công!', 'success');
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể lưu dự án', 'error');
+    }
+  };
+
+  const handleDeleteProject = async (id: string, name: string) => {
+    if (!confirm(`Bạn có chắc muốn xóa dự án '${name}' khỏi DevDock?`)) return;
+    try {
+      await api.deleteProject(id);
+      onRefreshProjects();
+      onShowToast(`Đã xóa dự án '${name}'`, 'info');
+    } catch (err: any) {
+      onShowToast(err.message || 'Xóa dự án thất bại', 'error');
+    }
+  };
+
+  const handleToggleFavorite = async (p: ProjectItem) => {
+    try {
+      await api.saveProject({ ...p, favorite: !p.favorite });
+      onRefreshProjects();
+    } catch { }
+  };
+
+  const handleRunCommand = async (p: ProjectItem, cmdKey: string) => {
+    setRunningCmd({ projectId: p.id, cmdKey });
+    setCmdOutput({ title: `${p.name} — ${cmdKey}`, output: 'Đang thực thi lệnh...\n', success: true });
+    try {
+      const res = await api.runProjectCommand(p.id, cmdKey);
+      setCmdOutput({
+        title: `${p.name} — ${cmdKey} (Mã thoát: ${res.exitCode})`,
+        output: res.output || (res.success ? 'Lệnh hoàn thành với mã thoát 0.' : 'Lệnh thất bại không có đầu ra.'),
+        success: res.success,
+      });
+      if (res.success) {
+        onShowToast(`Lệnh '${cmdKey}' hoàn tất thành công`, 'success');
+      } else {
+        onShowToast(`Lệnh '${cmdKey}' thất bại (mã thoát ${res.exitCode})`, 'error');
+      }
+    } catch (err: any) {
+      setCmdOutput({
+        title: `${p.name} — ${cmdKey} (Lỗi)`,
+        output: err.message || 'Lỗi thực thi lệnh',
+        success: false,
+      });
+      onShowToast(err.message || 'Thực thi lệnh thất bại', 'error');
+    } finally {
+      setRunningCmd(null);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#1E293B]">
+        <div>
+          <h1 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <FolderGit2 className="w-5 h-5 text-emerald-400" />
+            <span>Quản Lý Dự Án & Codebase</span>
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Đăng ký, khởi chạy dev server, build và quản lý luồng làm việc dự án của bạn.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm kiếm dự án (Tên, Thư mục, Tag)..."
+              className="w-full bg-[#111827] border border-[#1E293B] rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setNewProject({ name: '', path: '', commands: { dev: '', build: '', test: '' }, tags: [], favorite: false });
+              setInputPath('');
+              setIsAddModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Dự Án</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Projects Grid */}
+      <div className="flex-1 overflow-y-auto">
+        {filteredProjects.length === 0 ? (
+          <div className="py-20 text-center text-slate-500 flex flex-col items-center justify-center">
+            <FolderGit2 className="w-12 h-12 text-slate-700 mb-3 stroke-1" />
+            <p className="text-sm font-medium text-slate-400">Không tìm thấy dự án phù hợp bộ lọc</p>
+            <p className="text-xs text-slate-600 mt-1">Đăng ký dự án mới bằng cách nhấn "+ Thêm Dự Án" ở trên</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredProjects.map((p) => {
+              return (
+                <div
+                  key={p.id}
+                  className="bg-[#111827] border border-[#1E293B] hover:border-slate-700 rounded-xl p-4 flex flex-col justify-between gap-4 transition-all shadow-sm group"
+                >
+                  {/* Top: Name & Favorite */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      <div className="w-9 h-9 rounded-lg bg-[#0B0F17] border border-[#1E293B] flex items-center justify-center font-bold text-sm text-emerald-400 flex-shrink-0">
+                        {p.icon === 'dotnet'
+                          ? 'C#'
+                          : p.icon === 'node'
+                          ? 'JS'
+                          : p.icon === 'rust'
+                          ? 'RS'
+                          : p.icon === 'go'
+                          ? 'GO'
+                          : p.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="font-semibold text-sm text-slate-200 truncate group-hover:text-emerald-400 transition-colors">
+                          {p.name}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono truncate" title={p.path}>
+                          {p.path}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFavorite(p)}
+                      className="p-1 rounded text-slate-500 hover:text-amber-400 transition-colors cursor-pointer"
+                      title={p.favorite ? 'Bỏ yêu thích' : 'Đánh dấu yêu thích'}
+                    >
+                      <Star
+                        className={`w-4 h-4 ${p.favorite ? 'text-amber-400 fill-amber-400' : ''}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Tags */}
+                  {p.tags.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {p.tags.map((t) => (
+                        <span
+                          key={t}
+                          className="px-2 py-0.5 rounded bg-[#0B0F17] text-slate-400 border border-[#1E293B] text-[10px] font-mono"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                      {p.isGitRepository && (
+                        <span className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-900/60 text-[10px] font-mono">
+                          git
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions Bar */}
+                  <div className="pt-3 border-t border-[#1E293B] flex flex-col gap-2.5">
+                    {/* Dev / Build / Test Commands */}
+                    <div className="flex items-center gap-1.5">
+                      {p.commands.dev && (
+                        <button
+                          type="button"
+                          onClick={() => handleRunCommand(p, 'dev')}
+                          disabled={runningCmd?.projectId === p.id}
+                          className="flex-1 py-1.5 px-2 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-emerald-500/20 cursor-pointer"
+                          title={`Chạy: ${p.commands.dev}`}
+                        >
+                          <Play className="w-3 h-3 fill-emerald-400" />
+                          <span>Dev</span>
+                        </button>
+                      )}
+                      {p.commands.build && (
+                        <button
+                          type="button"
+                          onClick={() => handleRunCommand(p, 'build')}
+                          disabled={runningCmd?.projectId === p.id}
+                          className="flex-1 py-1.5 px-2 rounded bg-[#0B0F17] hover:bg-[#1E293B] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#1E293B] cursor-pointer"
+                          title={`Chạy: ${p.commands.build}`}
+                        >
+                          <Hammer className="w-3 h-3 text-blue-400" />
+                          <span>Build</span>
+                        </button>
+                      )}
+                      {p.commands.test && (
+                        <button
+                          type="button"
+                          onClick={() => handleRunCommand(p, 'test')}
+                          disabled={runningCmd?.projectId === p.id}
+                          className="flex-1 py-1.5 px-2 rounded bg-[#0B0F17] hover:bg-[#1E293B] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#1E293B] cursor-pointer"
+                          title={`Chạy: ${p.commands.test}`}
+                        >
+                          <TestTube className="w-3 h-3 text-amber-400" />
+                          <span>Test</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick utility launches */}
+                    <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => api.openExplorer(p.path)}
+                          className="hover:text-slate-200 transition-colors cursor-pointer"
+                          title="Mở thư mục trong Windows Explorer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => api.openEditor(p.path, 'code')}
+                          className="hover:text-slate-200 transition-colors cursor-pointer"
+                          title="Mở trong VS Code"
+                        >
+                          <Code2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpenTerminalForProject(p)}
+                          className="hover:text-slate-200 transition-colors cursor-pointer"
+                          title="Mở Terminal tại thư mục dự án"
+                        >
+                          <Terminal className="w-3.5 h-3.5" />
+                        </button>
+                        {p.isGitRepository && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenGitForProject(p)}
+                            className="hover:text-emerald-400 transition-colors text-[11px] font-mono cursor-pointer"
+                            title="Kiểm tra Git Repository"
+                          >
+                            Git
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProject(p.id, p.name)}
+                        className="hover:text-rose-400 transition-colors p-1 cursor-pointer"
+                        title="Xóa dự án"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Inline Command Output Drawer */}
+      {cmdOutput && (
+        <div className="bg-[#0B0F17] border border-[#1E293B] rounded-xl p-4 flex flex-col gap-2 shadow-2xl animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center justify-between border-b border-[#1E293B] pb-2">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              {cmdOutput.success ? (
+                <Check className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-400" />
+              )}
+              <span className="text-slate-200">{cmdOutput.title}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCmdOutput(null)}
+              className="p-1 text-slate-500 hover:text-slate-300 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <pre className="text-xs font-mono text-slate-300 bg-[#070A0F] p-3 rounded-lg overflow-x-auto max-h-48 whitespace-pre-wrap selectable">
+            {cmdOutput.output}
+          </pre>
+        </div>
+      )}
+
+      {/* Add / Register Project Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5">
+            <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
+              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <FolderGit2 className="w-5 h-5 text-emerald-400" />
+                <span>Đăng Ký Dự Án Mới</span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Path Auto-detect field */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-300">Đường Dẫn Thư Mục Dự Án</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={inputPath}
+                  onChange={(e) => setInputPath(e.target.value)}
+                  placeholder="D:\HIS.API hoặc D:\MyProject hoặc C:\repo"
+                  className="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono selectable"
+                />
+                <button
+                  type="button"
+                  onClick={handleDetectPath}
+                  disabled={detecting || !inputPath.trim()}
+                  className="px-3.5 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                >
+                  {detecting ? 'Đang quét...' : 'Quét tự động'}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Bấm "Quét tự động" để phát hiện kho lưu trữ .git, package.json / .csproj và các lệnh chạy.
+              </p>
+            </div>
+
+            {/* Editable project details */}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-400">Tên Hiển Thị Dự Án</label>
+                <input
+                  type="text"
+                  value={newProject.name || ''}
+                  onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                  placeholder="Tên Dự Án"
+                  className="bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 selectable"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-medium text-slate-400">Lệnh Dev</label>
+                  <input
+                    type="text"
+                    value={newProject.commands?.dev || ''}
+                    onChange={(e) =>
+                      setNewProject({
+                        ...newProject,
+                        commands: { ...newProject.commands, dev: e.target.value },
+                      })
+                    }
+                    placeholder="dotnet watch / npm run dev"
+                    className="bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-500 selectable"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-medium text-slate-400">Lệnh Build</label>
+                  <input
+                    type="text"
+                    value={newProject.commands?.build || ''}
+                    onChange={(e) =>
+                      setNewProject({
+                        ...newProject,
+                        commands: { ...newProject.commands, build: e.target.value },
+                      })
+                    }
+                    placeholder="dotnet build / npm run build"
+                    className="bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-500 selectable"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-medium text-slate-400">Lệnh Test</label>
+                  <input
+                    type="text"
+                    value={newProject.commands?.test || ''}
+                    onChange={(e) =>
+                      setNewProject({
+                        ...newProject,
+                        commands: { ...newProject.commands, test: e.target.value },
+                      })
+                    }
+                    placeholder="dotnet test / npm test"
+                    className="bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-500 selectable"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1E293B]">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveProject}
+                className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-semibold cursor-pointer shadow-glow-emerald"
+              >
+                Lưu Dự Án
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

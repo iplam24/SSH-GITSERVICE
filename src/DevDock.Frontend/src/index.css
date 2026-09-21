@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --accent-light: #34d399;
+  --accent-dark: #047857;
+  --accent-bg: rgba(16, 185, 129, 0.12);
+  --accent-bg-hover: rgba(16, 185, 129, 0.22);
+  --accent-border: rgba(16, 185, 129, 0.35);
+  --accent-glow: 0 0 20px -3px rgba(16, 185, 129, 0.3);
+}
+
+[data-accent="emerald"] {
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --accent-light: #34d399;
+  --accent-dark: #047857;
+  --accent-bg: rgba(16, 185, 129, 0.12);
+  --accent-bg-hover: rgba(16, 185, 129, 0.22);
+  --accent-border: rgba(16, 185, 129, 0.35);
+  --accent-glow: 0 0 20px -3px rgba(16, 185, 129, 0.3);
+}
+
+[data-accent="cyan"] {
+  --accent: #06b6d4;
+  --accent-hover: #0891b2;
+  --accent-light: #22d3ee;
+  --accent-dark: #0e7490;
+  --accent-bg: rgba(6, 182, 212, 0.12);
+  --accent-bg-hover: rgba(6, 182, 212, 0.22);
+  --accent-border: rgba(6, 182, 212, 0.35);
+  --accent-glow: 0 0 20px -3px rgba(6, 182, 212, 0.3);
+}
+
+[data-accent="violet"] {
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --accent-light: #a78bfa;
+  --accent-dark: #6d28d9;
+  --accent-bg: rgba(139, 92, 246, 0.12);
+  --accent-bg-hover: rgba(139, 92, 246, 0.22);
+  --accent-border: rgba(139, 92, 246, 0.35);
+  --accent-glow: 0 0 20px -3px rgba(139, 92, 246, 0.3);
+}
+
+[data-accent="rose"] {
+  --accent: #f43f5e;
+  --accent-hover: #e11d48;
+  --accent-light: #fb7185;
+  --accent-dark: #be123c;
+  --accent-bg: rgba(244, 63, 94, 0.12);
+  --accent-bg-hover: rgba(244, 63, 94, 0.22);
+  --accent-border: rgba(244, 63, 94, 0.35);
+  --accent-glow: 0 0 20px -3px rgba(244, 63, 94, 0.3);
+}
+
+[data-accent="amber"] {
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --accent-light: #fbbf24;
+  --accent-dark: #b45309;
+  --accent-bg: rgba(245, 158, 11, 0.12);
+  --accent-bg-hover: rgba(245, 158, 11, 0.22);
+  --accent-border: rgba(245, 158, 11, 0.35);
+  --accent-glow: 0 0 20px -3px rgba(245, 158, 11, 0.3);
+}
+
+@layer base {
+  * {
+    border-color: #1E2A44;
+  }
+  html, body {
+    background-color: #090D16;
+    color: #F8FAFC;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+}
+
+/* Accent utility helpers */
+.text-accent { color: var(--accent); }
+.text-accent-light { color: var(--accent-light); }
+.bg-accent { background-color: var(--accent); }
+.bg-accent-hover:hover { background-color: var(--accent-hover); }
+.bg-accent-bg { background-color: var(--accent-bg); }
+.bg-accent-bg-hover:hover { background-color: var(--accent-bg-hover); }
+.border-accent { border-color: var(--accent); }
+.border-accent-border { border-color: var(--accent-border); }
+.shadow-glow-accent { box-shadow: var(--accent-glow); }
+
+/* Custom Windows 11 sleek scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #25334E;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3B4E73;
+}
+
+/* Make inputs and code selectable */
+input, textarea, pre, code, .selectable {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Windows 11 Mica Glass utility */
+.mica-surface {
+  background: rgba(14, 20, 36, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Xterm overrides for seamless dark integration */
+.xterm {
+  padding: 8px;
+}
+.xterm-viewport {
+  background-color: transparent !important;
+}

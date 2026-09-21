@@ -1,0 +1,51 @@
+﻿# DevDock .gitignore
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+dist/
+build/
+out/
+publish/
+
+# Visual Studio / VS Code / JetBrains
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.idea/
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Logs & Temp
+*.log
+*.tmp
+*.bak
+*.swp
+Thumbs.db
+.DS_Store
+
+# Packaged outputs & installers
+*.nupkg
+*.snupkg
+*.exe
+*.msi
+*.zip
+*.7z
+*.rar
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
