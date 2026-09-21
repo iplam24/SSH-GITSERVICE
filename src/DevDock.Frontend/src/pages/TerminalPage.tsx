@@ -33,6 +33,9 @@ interface TerminalPageProps {
   onClearPendingSsh?: () => void;
   pendingRunCommand?: string | null;
   onClearPendingRunCommand?: () => void;
+  pendingCwd?: string | null;
+  onClearPendingCwd?: () => void;
+  isPageVisible?: boolean;
   terminalFontSize?: number;
   terminalFontFamily?: string;
   terminalBackgroundImage?: string;
@@ -49,6 +52,9 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   onClearPendingSsh,
   pendingRunCommand,
   onClearPendingRunCommand,
+  pendingCwd,
+  onClearPendingCwd,
+  isPageVisible = true,
   terminalFontSize = 13,
   terminalFontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
   terminalBackgroundImage,
@@ -62,12 +68,27 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   const [activePaneTabIds, setActivePaneTabIds] = useState<{ [pane: number]: string }>({ 0: '' });
   const [isShellMenuOpen, setIsShellMenuOpen] = useState(false);
 
-  // Initialize first terminal if none exist and not connecting to SSH
+  const getInitialDimensions = () => {
+    const cols = Math.max(80, Math.floor((window.innerWidth - 260) / 8.5));
+    const rows = Math.max(24, Math.floor((window.innerHeight - 120) / 18));
+    return { cols, rows };
+  };
+
+  // Initialize first terminal if none exist and not connecting to SSH or opening CWD
   useEffect(() => {
-    if (tabs.length === 0 && !pendingSshProfileId) {
+    if (tabs.length === 0 && !pendingSshProfileId && !pendingCwd) {
       handleCreateLocalTerminal('PowerShell');
     }
   }, []);
+
+  // Handle pending Working Directory (from Projects, Git, Home, Command Palette)
+  useEffect(() => {
+    if (pendingCwd) {
+      const folderName = pendingCwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || pendingCwd;
+      handleCreateLocalTerminal('PowerShell', pendingCwd, `PowerShell: ${folderName}`);
+      onClearPendingCwd?.();
+    }
+  }, [pendingCwd]);
 
   // Handle pending SSH connection triggered from SshPage or HomePage
   useEffect(() => {
@@ -77,13 +98,18 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
     }
   }, [pendingSshProfileId]);
 
-  const handleCreateLocalTerminal = async (shellType: TerminalShellType = 'PowerShell', cwd?: string) => {
+  const handleCreateLocalTerminal = async (
+    shellType: TerminalShellType = 'PowerShell',
+    cwd?: string,
+    customTitle?: string
+  ) => {
     try {
-      const session = await api.createTerminal(shellType, cwd, 80, 24);
+      const { cols, rows } = getInitialDimensions();
+      const session = await api.createTerminal(shellType, cwd, cols, rows);
       const newTab: TerminalTab = {
         id: session.sessionId,
         session,
-        title: session.title,
+        title: customTitle || session.title,
         paneIndex: 0,
       };
       setTabs((prev) => [...prev, newTab]);
@@ -100,7 +126,8 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
     onShowToast(`Đang kết nối SSH tới ${profileName}...`, 'info');
 
     try {
-      const session = await api.connectSshTerminal(profileId, 80, 24);
+      const { cols, rows } = getInitialDimensions();
+      const session = await api.connectSshTerminal(profileId, cols, rows);
       const newTab: TerminalTab = {
         id: session.sessionId,
         session,
@@ -141,9 +168,9 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#060911] overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#08090d] overflow-hidden select-none">
       {/* Terminal Top Control Bar */}
-      <div className="h-9 bg-[#090D16] border-b border-[#1A2235] px-2 flex items-center justify-between flex-shrink-0">
+      <div className="h-9 bg-[#0c0d12] border-b border-[#1e2230] px-2 flex items-center justify-between flex-shrink-0">
         {/* Terminal Tabs List */}
         <div className="flex items-center gap-1 overflow-x-auto flex-1 h-full py-1">
           {tabs.map((tab) => {
@@ -154,12 +181,10 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
               <div
                 key={tab.id}
                 onClick={() => setActiveTabId(tab.id)}
-                className={`flex items-center gap-2 px-3 py-1 rounded-t-lg text-xs font-mono cursor-pointer transition-all border-t-2 ${
+                className={`flex items-center gap-2 px-3 py-1 rounded-t-md text-xs font-mono cursor-pointer transition-all border-t-2 ${
                   isActive
-                    ? isSsh
-                      ? 'bg-[#060911] text-cyan-200 border-cyan-400 font-medium shadow-glow-cyan'
-                      : 'bg-[#060911] text-slate-100 border-emerald-400 font-medium shadow-glow-emerald'
-                    : 'bg-[#0E1526]/70 text-slate-400 border-transparent hover:bg-[#141E34] hover:text-slate-200'
+                    ? 'bg-[#12141c] text-slate-100 border-blue-500 font-medium'
+                    : 'bg-transparent text-slate-400 border-transparent hover:bg-white/[0.04] hover:text-slate-200'
                 }`}
               >
                 {isSsh ? (

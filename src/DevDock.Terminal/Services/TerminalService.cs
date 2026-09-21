@@ -20,6 +20,7 @@ public class TerminalSessionHolder : IDisposable
 
     public void Resize(int cols, int rows)
     {
+        if (cols <= 0 || rows <= 0) return;
         if (ConPtyProcess != null)
         {
             ConPtyProcess.Resize(cols, rows);

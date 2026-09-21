@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DevDock.Core.Models;
 using DevDock.Core.Services;
 
@@ -240,22 +241,57 @@ public class GitService : IGitService
     public async Task<string> CommitAsync(GitCommitRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
-            throw new ArgumentException("Commit message cannot be empty");
+            throw new ArgumentException("Thông điệp commit không được để trống.");
 
-        var escapedMsg = request.Message.Replace("\"", "\\\"");
-        var args = $"commit -m \"{escapedMsg}\"";
+        if (string.IsNullOrWhiteSpace(request.RepoPath) || !Directory.Exists(request.RepoPath))
+            throw new ArgumentException("Đường dẫn repository Git không hợp lệ.");
 
-        if (!string.IsNullOrEmpty(request.AuthorName) && !string.IsNullOrEmpty(request.AuthorEmail))
+        // 1. Tự động stage tất cả nếu được yêu cầu
+        if (request.AutoStageAll)
         {
-            args += $" --author=\"{request.AuthorName} <{request.AuthorEmail}>\"";
+            await RunGitAsync(request.RepoPath, "add -A");
         }
 
-        var (code, stdout, stderr) = await RunGitAsync(request.RepoPath, args);
-        if (code != 0)
+        // 2. Kiểm tra xem có tệp nào đã được Stage chưa
+        var (_, stagedFilesOut, _) = await RunGitAsync(request.RepoPath, "diff --cached --name-only");
+        if (string.IsNullOrWhiteSpace(stagedFilesOut))
         {
-            throw new InvalidOperationException($"Commit failed: {stderr}");
+            throw new InvalidOperationException("Chưa có tệp nào được đưa vào hàng đợi (Staged). Vui lòng bấm 'Stage All' hoặc dấu '+' bên cạnh các tệp cần commit trước khi tạo commit.");
         }
-        return stdout;
+
+        // 3. Sử dụng file tạm UTF-8 để lưu commit message, tránh lỗi command line arguments trên Windows khi có xuống dòng hoặc ký tự đặc biệt
+        var tempMsgFile = Path.Combine(Path.GetTempPath(), $"git_commit_{Guid.NewGuid():N}.txt");
+        try
+        {
+            await File.WriteAllTextAsync(tempMsgFile, request.Message.Trim(), new UTF8Encoding(false));
+            var args = $"commit -F \"{tempMsgFile}\"";
+
+            if (!string.IsNullOrEmpty(request.AuthorName) && !string.IsNullOrEmpty(request.AuthorEmail))
+            {
+                args += $" --author=\"{request.AuthorName} <{request.AuthorEmail}>\"";
+            }
+
+            var (code, stdout, stderr) = await RunGitAsync(request.RepoPath, args);
+            if (code != 0)
+            {
+                var err = !string.IsNullOrWhiteSpace(stderr) ? stderr : stdout;
+                if (err.Contains("no changes added to commit", StringComparison.OrdinalIgnoreCase) ||
+                    err.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Chưa có tệp nào được đưa vào hàng đợi (Staged). Vui lòng bấm 'Stage All' hoặc dấu '+' trước khi tạo commit.");
+                }
+                if (err.Contains("Please tell me who you are", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Chưa cấu hình Git User Name hoặc Email. Vui lòng vào Cài đặt -> Git Global Config để thiết lập thông tin tác giả.");
+                }
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(err) ? $"Commit thất bại (Mã lỗi: {code})" : err);
+            }
+            return stdout;
+        }
+        finally
+        {
+            try { if (File.Exists(tempMsgFile)) File.Delete(tempMsgFile); } catch { }
+        }
     }
 
     public async Task<string> PushAsync(string repoPath, string? remote = null, string? branch = null)
@@ -368,7 +404,7 @@ public class GitService : IGitService
         return list;
     }
 
-    public async Task<GitDiffResult> GetFileDiffAsync(string repoPath, string filePath, bool staged = false)
+    public async Task<GitDiffResult> GetFileDiffAsync(string repoPath, string filePath, bool staged = false, int contextLines = 3)
     {
         // Check if untracked
         var fullPath = Path.IsPathRooted(filePath) ? filePath : Path.Combine(repoPath, filePath);
@@ -388,7 +424,8 @@ public class GitService : IGitService
         }
 
         var flag = staged ? "--cached " : "";
-        var (code, stdout, _) = await RunGitAsync(repoPath, $"diff {flag}-- \"{filePath}\"");
+        var uFlag = contextLines > 0 ? $"-U{contextLines} " : (contextLines == 0 ? "-U0 " : "");
+        var (code, stdout, _) = await RunGitAsync(repoPath, $"diff {flag}{uFlag}-- \"{filePath}\"");
 
         return GitDiffParser.Parse(stdout, filePath);
     }
@@ -781,8 +818,28 @@ public class GitService : IGitService
 
     public async Task<GithubActionSetupResult> SetupGithubActionAsync(GithubActionSetupRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.RepoPath) || !Directory.Exists(request.RepoPath))
+        string? targetLocalPath = null;
+        if (!string.IsNullOrWhiteSpace(request.RepoPath) && Directory.Exists(request.RepoPath))
         {
+            targetLocalPath = request.RepoPath;
+            if (!string.IsNullOrWhiteSpace(request.RemoteRepoFullName))
+            {
+                var matched = await ResolveMatchingLocalPathAsync(request.RepoPath, request.RemoteRepoFullName);
+                if (matched != null) targetLocalPath = matched;
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(request.RemoteRepoFullName))
+        {
+            targetLocalPath = await ResolveMatchingLocalPathAsync(null, request.RemoteRepoFullName);
+        }
+
+        if (targetLocalPath == null)
+        {
+            if (!string.IsNullOrWhiteSpace(request.AccountId) && !string.IsNullOrWhiteSpace(request.RemoteRepoFullName))
+            {
+                return await SetupGithubActionDirectlyOnGithubAsync(request);
+            }
+
             return new GithubActionSetupResult
             {
                 Success = false,
@@ -793,7 +850,7 @@ public class GitService : IGitService
         try
         {
             var generatedFiles = new List<string>();
-            var workflowsDir = Path.Combine(request.RepoPath, ".github", "workflows");
+            var workflowsDir = Path.Combine(targetLocalPath, ".github", "workflows");
             if (!Directory.Exists(workflowsDir))
             {
                 Directory.CreateDirectory(workflowsDir);
@@ -819,28 +876,28 @@ public class GitService : IGitService
 
             if (request.GenerateDockerfile)
             {
-                var dockerfilePath = Path.Combine(request.RepoPath, "Dockerfile");
+                var dockerfilePath = Path.Combine(targetLocalPath, "Dockerfile");
                 await File.WriteAllTextAsync(dockerfilePath, GenerateDockerfileContent(tech, port), Encoding.UTF8);
                 generatedFiles.Add("Dockerfile");
             }
 
             if (request.GenerateDockerCompose)
             {
-                var composePath = Path.Combine(request.RepoPath, "docker-compose.yml");
+                var composePath = Path.Combine(targetLocalPath, "docker-compose.yml");
                 await File.WriteAllTextAsync(composePath, GenerateDockerComposeContent(port), Encoding.UTF8);
                 generatedFiles.Add("docker-compose.yml");
             }
 
             if (request.GeneratePm2Config)
             {
-                var pm2Path = Path.Combine(request.RepoPath, "ecosystem.config.js");
+                var pm2Path = Path.Combine(targetLocalPath, "ecosystem.config.js");
                 await File.WriteAllTextAsync(pm2Path, GeneratePm2Content(port), Encoding.UTF8);
                 generatedFiles.Add("ecosystem.config.js");
             }
 
             if (request.GenerateSystemd)
             {
-                var systemdPath = Path.Combine(request.RepoPath, "production-app.service");
+                var systemdPath = Path.Combine(targetLocalPath, "production-app.service");
                 await File.WriteAllTextAsync(systemdPath, GenerateSystemdContent(request.DeployDirectory, port), Encoding.UTF8);
                 generatedFiles.Add("production-app.service");
             }
@@ -859,9 +916,9 @@ public class GitService : IGitService
                 {
                     foreach (var gf in generatedFiles)
                     {
-                        await RunGitAsync(request.RepoPath, $"add \"{gf}\"");
+                        await RunGitAsync(targetLocalPath, $"add \"{gf}\"");
                     }
-                    await RunGitAsync(request.RepoPath, "commit -m \"ci: auto setup GitHub Actions deployment workflow & configs via DevDock\"");
+                    await RunGitAsync(targetLocalPath, "commit -m \"ci: auto setup GitHub Actions deployment workflow & configs via DevDock\"");
                 }
                 catch { }
             }
@@ -886,18 +943,202 @@ public class GitService : IGitService
         }
     }
 
+    private async Task<GithubActionSetupResult> SetupGithubActionDirectlyOnGithubAsync(GithubActionSetupRequest request)
+    {
+        if (_settingsService == null || _credentialService == null || _httpClient == null)
+        {
+            return new GithubActionSetupResult
+            {
+                Success = false,
+                Message = "Dịch vụ xác thực GitHub chưa sẵn sàng để thiết lập trực tuyến."
+            };
+        }
+
+        try
+        {
+            var account = await _settingsService.GetGitAccountByIdAsync(request.AccountId!);
+            var token = await _credentialService.GetSecretAsync($"git:account:{request.AccountId}:token");
+            if (account == null || string.IsNullOrWhiteSpace(token))
+            {
+                return new GithubActionSetupResult
+                {
+                    Success = false,
+                    Message = "Không tìm thấy token của tài khoản GitHub."
+                };
+            }
+
+            var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
+            var fileName = string.IsNullOrWhiteSpace(request.WorkflowFileName) ? "deploy.yml" : request.WorkflowFileName.Trim();
+            if (!fileName.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) && !fileName.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
+            {
+                fileName += ".yml";
+            }
+
+            var path = $".github/workflows/{fileName}";
+            var yamlContent = !string.IsNullOrWhiteSpace(request.CustomWorkflowYaml)
+                ? request.CustomWorkflowYaml.Trim()
+                : GenerateGithubActionYaml(request);
+
+            string? existingSha = null;
+            var getReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/repos/{request.RemoteRepoFullName}/contents/{path}");
+            getReq.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+            getReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var getResp = await _httpClient.SendAsync(getReq);
+            if (getResp.IsSuccessStatusCode)
+            {
+                var getJson = await getResp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(getJson);
+                if (doc.RootElement.TryGetProperty("sha", out var s))
+                {
+                    existingSha = s.GetString();
+                }
+            }
+
+            var targetBranch = string.IsNullOrWhiteSpace(request.TargetBranch) ? "main" : request.TargetBranch.Trim();
+            var payload = new Dictionary<string, object>
+            {
+                ["message"] = "ci: auto setup GitHub Actions deployment workflow via DevDock",
+                ["content"] = Convert.ToBase64String(Encoding.UTF8.GetBytes(yamlContent)),
+                ["branch"] = targetBranch
+            };
+            if (!string.IsNullOrEmpty(existingSha))
+            {
+                payload["sha"] = existingSha;
+            }
+
+            var putReq = new HttpRequestMessage(HttpMethod.Put, $"{baseUrl}/repos/{request.RemoteRepoFullName}/contents/{path}");
+            putReq.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+            putReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            putReq.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+            var putResp = await _httpClient.SendAsync(putReq);
+            if (!putResp.IsSuccessStatusCode)
+            {
+                var errText = await putResp.Content.ReadAsStringAsync();
+                return new GithubActionSetupResult
+                {
+                    Success = false,
+                    Message = $"GitHub API trả về lỗi ({putResp.StatusCode}): {errText}"
+                };
+            }
+
+            var secrets = new List<string> { "SSH_HOST", "SSH_USER", "SSH_KEY" };
+            if (request.ServerPort != 22) secrets.Add("SSH_PORT");
+            if (request.DeployType.Contains("DOCKER", StringComparison.OrdinalIgnoreCase))
+            {
+                secrets.Add("DOCKER_USERNAME");
+                secrets.Add("DOCKER_PASSWORD");
+            }
+
+            return new GithubActionSetupResult
+            {
+                Success = true,
+                WorkflowFilePath = path,
+                WorkflowContent = yamlContent,
+                RequiredSecrets = secrets,
+                GeneratedFiles = new List<string> { path },
+                Message = $"Đã tự động tạo và đẩy workflow trực tiếp lên kho GitHub '{request.RemoteRepoFullName}' ({path}) thành công!"
+            };
+        }
+        catch (Exception ex)
+        {
+            return new GithubActionSetupResult
+            {
+                Success = false,
+                Message = $"Lỗi khi đẩy workflow lên GitHub: {ex.Message}"
+            };
+        }
+    }
+
+    private async Task<string?> ResolveMatchingLocalPathAsync(string? repoPath, string remoteRepoFullName)
+    {
+        var remoteRepoName = remoteRepoFullName.Contains('/') ? remoteRepoFullName.Split('/').Last() : remoteRepoFullName;
+
+        // 1. If repoPath is given and exists, check if it matches the remote repo
+        if (!string.IsNullOrWhiteSpace(repoPath) && Directory.Exists(repoPath))
+        {
+            var dirName = Path.GetFileName(repoPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (dirName.Equals(remoteRepoName, StringComparison.OrdinalIgnoreCase))
+            {
+                return repoPath;
+            }
+
+            // Check if git remote in repoPath matches
+            try
+            {
+                var (code, stdout, _) = await RunGitAsync(repoPath, "remote -v");
+                if (code == 0 && stdout.Contains(remoteRepoFullName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return repoPath;
+                }
+            }
+            catch { }
+
+            // Check if sibling directory matches (e.g. D:\tele-locketvip next to D:\ToolTienich)
+            try
+            {
+                var parent = Path.GetDirectoryName(repoPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (!string.IsNullOrEmpty(parent))
+                {
+                    var sibling = Path.Combine(parent, remoteRepoName);
+                    if (Directory.Exists(sibling))
+                    {
+                        return sibling;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 2. Check common roots (e.g. D:\, C:\, User Profile)
+        var candidateRoots = new[] { @"D:\", @"C:\", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) };
+        foreach (var root in candidateRoots)
+        {
+            if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
+            try
+            {
+                var directMatch = Path.Combine(root, remoteRepoName);
+                if (Directory.Exists(directMatch))
+                {
+                    return directMatch;
+                }
+            }
+            catch { }
+        }
+
+        return null;
+    }
+
     public async Task<RepoTechInspectionResult> InspectRepositoryTechAsync(InspectRepoRequest request)
     {
         var result = new RepoTechInspectionResult();
 
-        // 1. Kiểm tra thư mục cục bộ nếu có
+        // 1. If remote repo full name is provided, resolve matching local directory or inspect remotely
+        if (!string.IsNullOrWhiteSpace(request.RemoteRepoFullName))
+        {
+            var matchedLocalPath = await ResolveMatchingLocalPathAsync(request.RepoPath, request.RemoteRepoFullName);
+            if (matchedLocalPath != null)
+            {
+                InspectLocalDirectory(matchedLocalPath, result);
+                return result;
+            }
+
+            // If no matching local directory found on disk, analyze remotely via GitHub API
+            if (!string.IsNullOrWhiteSpace(request.AccountId))
+            {
+                await InspectRemoteGithubRepoAsync(request.AccountId, request.RemoteRepoFullName, result);
+                return result;
+            }
+        }
+
+        // 2. Kiểm tra thư mục cục bộ nếu có
         if (!string.IsNullOrWhiteSpace(request.RepoPath) && Directory.Exists(request.RepoPath))
         {
             InspectLocalDirectory(request.RepoPath, result);
             return result;
         }
 
-        // 2. Kiểm tra kho từ xa qua GitHub REST API
+        // 3. Kiểm tra kho từ xa qua GitHub REST API
         if (!string.IsNullOrWhiteSpace(request.AccountId) && !string.IsNullOrWhiteSpace(request.RemoteRepoFullName))
         {
             await InspectRemoteGithubRepoAsync(request.AccountId, request.RemoteRepoFullName, result);
@@ -952,9 +1193,172 @@ public class GitService : IGitService
             catch { }
         }
 
-        // 4. Kiểm tra .NET (.csproj / .sln)
-        var csprojFiles = Directory.GetFiles(dir, "*.csproj", SearchOption.AllDirectories);
-        if (csprojFiles.Length > 0 || Directory.GetFiles(dir, "*.sln").Length > 0)
+        // 4. Kiểm tra Python (requirements.txt / pyproject.toml / main.py / ecosystem.config.js / *.py)
+        var pyFiles = Directory.GetFiles(dir, "*.py");
+        var hasPyManifest = File.Exists(Path.Combine(dir, "requirements.txt")) ||
+                            File.Exists(Path.Combine(dir, "requirements-dev.txt")) ||
+                            File.Exists(Path.Combine(dir, "pyproject.toml")) ||
+                            File.Exists(Path.Combine(dir, "Pipfile")) ||
+                            File.Exists(Path.Combine(dir, "setup.py")) ||
+                            File.Exists(Path.Combine(dir, "environment.yml"));
+
+        var ecosystemPath = Path.Combine(dir, "ecosystem.config.js");
+        var hasPyEcosystem = false;
+        string ecosystemContent = "";
+        if (File.Exists(ecosystemPath))
+        {
+            try
+            {
+                ecosystemContent = File.ReadAllText(ecosystemPath);
+                if (ecosystemContent.Contains("python", StringComparison.OrdinalIgnoreCase) ||
+                    ecosystemContent.Contains(".py", StringComparison.OrdinalIgnoreCase) ||
+                    ecosystemContent.Contains("uvicorn", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasPyEcosystem = true;
+                }
+            }
+            catch { }
+        }
+
+        var hasPySubdir = (Directory.Exists(Path.Combine(dir, "app")) && Directory.GetFiles(Path.Combine(dir, "app"), "*.py").Length > 0) ||
+                          (Directory.Exists(Path.Combine(dir, "web")) && Directory.GetFiles(Path.Combine(dir, "web"), "*.py").Length > 0);
+
+        if (hasPyManifest || pyFiles.Length > 0 || hasPyEcosystem || hasPySubdir)
+        {
+            res.TechStack = "Python";
+            res.PackageManager = File.Exists(Path.Combine(dir, "Pipfile")) ? "pipenv" :
+                                 File.Exists(Path.Combine(dir, "poetry.lock")) ? "poetry" : "pip";
+            res.BuildCommand = File.Exists(Path.Combine(dir, "requirements.txt"))
+                ? "pip install -r requirements.txt"
+                : "pip install -r requirements.txt || true";
+            res.TestCommand = "pytest";
+            res.AppPort = 8000;
+            res.Framework = "Python App";
+            res.StartCommand = "python main.py";
+
+            // Inspect ecosystem.config.js if present
+            if (hasPyEcosystem)
+            {
+                res.SuggestedDeployType = "SSH_PM2";
+                res.StartCommand = "pm2 start ecosystem.config.js || pm2 reload ecosystem.config.js";
+                var portMatch = Regex.Match(ecosystemContent, @"--port\s+(\d+)");
+                if (!portMatch.Success) portMatch = Regex.Match(ecosystemContent, @"port:\s*(\d+)", RegexOptions.IgnoreCase);
+                if (portMatch.Success && int.TryParse(portMatch.Groups[1].Value, out var p))
+                {
+                    res.AppPort = p;
+                }
+            }
+
+            // Inspect frameworks
+            var isFastApi = false;
+            var isDjango = File.Exists(Path.Combine(dir, "manage.py"));
+            var isFlask = false;
+            var isBot = false;
+
+            if (ecosystemContent.Contains("uvicorn", StringComparison.OrdinalIgnoreCase) ||
+                ecosystemContent.Contains("fastapi", StringComparison.OrdinalIgnoreCase))
+            {
+                isFastApi = true;
+            }
+
+            if (File.Exists(Path.Combine(dir, "requirements.txt")))
+            {
+                try
+                {
+                    var reqContent = File.ReadAllText(Path.Combine(dir, "requirements.txt")).ToLowerInvariant();
+                    if (reqContent.Contains("fastapi")) isFastApi = true;
+                    if (reqContent.Contains("django")) isDjango = true;
+                    if (reqContent.Contains("flask")) isFlask = true;
+                    if (reqContent.Contains("telebot") || reqContent.Contains("aiogram") || reqContent.Contains("telegram")) isBot = true;
+                }
+                catch { }
+            }
+
+            var allPyFiles = pyFiles.Concat(Directory.Exists(Path.Combine(dir, "app")) ? Directory.GetFiles(Path.Combine(dir, "app"), "*.py") : Array.Empty<string>())
+                                    .Concat(Directory.Exists(Path.Combine(dir, "web")) ? Directory.GetFiles(Path.Combine(dir, "web"), "*.py") : Array.Empty<string>());
+
+            foreach (var pyFile in allPyFiles.Take(12))
+            {
+                try
+                {
+                    var fname = Path.GetFileName(pyFile).ToLowerInvariant();
+                    if (fname.Contains("bot")) isBot = true;
+                    var content = File.ReadAllText(pyFile);
+                    if (content.Contains("from fastapi") || content.Contains("import fastapi")) isFastApi = true;
+                    if (content.Contains("from flask") || content.Contains("import flask")) isFlask = true;
+                    if (content.Contains("aiogram") || content.Contains("telebot") || content.Contains("telegram")) isBot = true;
+                }
+                catch { }
+            }
+
+            if (isFastApi)
+            {
+                res.Framework = isBot ? "FastAPI & Telegram Bot" : "FastAPI";
+                if (!hasPyEcosystem)
+                {
+                    var webMain = File.Exists(Path.Combine(dir, "web", "main.py")) ? "web.main:app" : "main:app";
+                    res.StartCommand = $"uvicorn {webMain} --host 0.0.0.0 --port {res.AppPort}";
+                }
+            }
+            else if (isDjango)
+            {
+                res.Framework = "Django";
+                res.AppPort = 8000;
+                res.StartCommand = "python manage.py runserver 0.0.0.0:8000";
+            }
+            else if (isFlask)
+            {
+                res.Framework = "Flask";
+                res.AppPort = 5000;
+                res.StartCommand = "flask run --host=0.0.0.0";
+            }
+            else if (isBot)
+            {
+                res.Framework = "Python Telegram Bot";
+                if (!hasPyEcosystem)
+                {
+                    res.StartCommand = File.Exists(Path.Combine(dir, "main.py")) ? "python main.py" : "python bot.py";
+                }
+            }
+            else
+            {
+                if (File.Exists(Path.Combine(dir, "main.py"))) res.StartCommand = "python main.py";
+                else if (File.Exists(Path.Combine(dir, "app.py"))) res.StartCommand = "python app.py";
+            }
+
+            res.Summary = $"Dự án {res.Framework} (Python / {res.PackageManager}) — Nhận diện thành công!";
+            res.Recommendation = hasPyEcosystem
+                ? $"Dự án có cấu hình ecosystem.config.js. Gợi ý triển khai PM2 tự khởi động qua cổng {res.AppPort}."
+                : $"Gợi ý triển khai Systemd hoặc Uvicorn/Gunicorn qua cổng {res.AppPort}.";
+            return;
+        }
+
+        // 5. Kiểm tra .NET (.csproj / .sln)
+        var rootCsproj = Directory.GetFiles(dir, "*.csproj");
+        var rootSln = Directory.GetFiles(dir, "*.sln");
+        var csprojFiles = new List<string>(rootCsproj);
+
+        if (csprojFiles.Count == 0 && rootSln.Length == 0)
+        {
+            var candidateDirs = new[] { "src", "server", "backend", "api" };
+            foreach (var sub in candidateDirs)
+            {
+                var subPath = Path.Combine(dir, sub);
+                if (Directory.Exists(subPath))
+                {
+                    try
+                    {
+                        var found = Directory.GetFiles(subPath, "*.csproj", SearchOption.AllDirectories)
+                            .Where(f => !f.Contains("node_modules") && !f.Contains("venv") && !f.Contains("bin") && !f.Contains("obj"))
+                            .ToList();
+                        csprojFiles.AddRange(found);
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        if (csprojFiles.Count > 0 || rootSln.Length > 0)
         {
             res.TechStack = "DotNet";
             res.Framework = "ASP.NET Core / .NET 9";
@@ -964,60 +1368,21 @@ public class GitService : IGitService
             res.StartCommand = "sudo systemctl restart kestrel-app || dotnet ./publish/App.dll";
             res.AppPort = 5000;
 
-            if (csprojFiles.Length > 0)
+            if (csprojFiles.Count > 0)
             {
                 try
                 {
                     var projText = File.ReadAllText(csprojFiles[0]);
                     if (projText.Contains("net8.0")) res.Framework = "ASP.NET Core (.NET 8)";
                     else if (projText.Contains("net9.0")) res.Framework = "ASP.NET Core (.NET 9)";
+                    else if (projText.Contains("net7.0")) res.Framework = "ASP.NET Core (.NET 7)";
+                    else if (projText.Contains("net6.0")) res.Framework = "ASP.NET Core (.NET 6)";
                 }
                 catch { }
             }
 
             res.Summary = $"Dự án {res.Framework} ({res.PackageManager}) — Nhận diện thành công!";
             res.Recommendation = $"Gợi ý triển khai Systemd hoặc Docker với SDK .NET qua cổng {res.AppPort}.";
-            return;
-        }
-
-        // 5. Kiểm tra Python (requirements.txt / pyproject.toml)
-        var reqTxt = Path.Combine(dir, "requirements.txt");
-        if (File.Exists(reqTxt) || File.Exists(Path.Combine(dir, "pyproject.toml")))
-        {
-            res.TechStack = "Python";
-            res.PackageManager = "pip";
-            res.BuildCommand = "pip install -r requirements.txt";
-            res.TestCommand = "pytest";
-            res.AppPort = 8000;
-            res.Framework = "Python App";
-
-            if (File.Exists(reqTxt))
-            {
-                try
-                {
-                    var txt = File.ReadAllText(reqTxt).ToLowerInvariant();
-                    if (txt.Contains("fastapi"))
-                    {
-                        res.Framework = "FastAPI";
-                        res.StartCommand = "uvicorn main:app --host 0.0.0.0 --port 8000";
-                    }
-                    else if (txt.Contains("django"))
-                    {
-                        res.Framework = "Django";
-                        res.StartCommand = "python manage.py runserver 0.0.0.0:8000";
-                    }
-                    else if (txt.Contains("flask"))
-                    {
-                        res.Framework = "Flask";
-                        res.AppPort = 5000;
-                        res.StartCommand = "flask run --host=0.0.0.0";
-                    }
-                }
-                catch { }
-            }
-
-            res.Summary = $"Ứng dụng {res.Framework} (Python / {res.PackageManager})";
-            res.Recommendation = $"Khuyên dùng Gunicorn/Uvicorn qua cổng {res.AppPort}.";
             return;
         }
 
@@ -1181,6 +1546,7 @@ public class GitService : IGitService
 
             var fileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             string? pkgDownloadUrl = null;
+            string? ecosystemDownloadUrl = null;
 
             foreach (var item in doc.RootElement.EnumerateArray())
             {
@@ -1194,6 +1560,11 @@ public class GitService : IGitService
                     {
                         pkgDownloadUrl = du.GetString();
                     }
+                    if (name.Equals("ecosystem.config.js", StringComparison.OrdinalIgnoreCase) &&
+                        item.TryGetProperty("download_url", out var edu))
+                    {
+                        ecosystemDownloadUrl = edu.GetString();
+                    }
                 }
             }
 
@@ -1201,6 +1572,7 @@ public class GitService : IGitService
             res.HasDockerCompose = fileNames.Contains("docker-compose.yml") || fileNames.Contains("docker-compose.yaml") || fileNames.Contains("compose.yaml");
             if (res.HasDockerCompose || res.HasDockerfile) res.SuggestedDeployType = "SSH_DOCKER";
 
+            // Check package.json if present
             if (fileNames.Contains("package.json") && !string.IsNullOrWhiteSpace(pkgDownloadUrl))
             {
                 var pkgReq = new HttpRequestMessage(HttpMethod.Get, pkgDownloadUrl);
@@ -1217,6 +1589,90 @@ public class GitService : IGitService
                 }
             }
 
+            // Check Python & PM2 (ecosystem.config.js)
+            var hasPyFile = fileNames.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) ||
+                            fileNames.Contains("requirements.txt") ||
+                            fileNames.Contains("requirements-dev.txt") ||
+                            fileNames.Contains("pyproject.toml") ||
+                            fileNames.Contains("Pipfile") ||
+                            fileNames.Contains("setup.py");
+
+            var hasPyEcosystem = false;
+            var ecoPort = 0;
+            var isEcoFastApi = false;
+
+            if (fileNames.Contains("ecosystem.config.js") && !string.IsNullOrWhiteSpace(ecosystemDownloadUrl))
+            {
+                try
+                {
+                    var ecoReq = new HttpRequestMessage(HttpMethod.Get, ecosystemDownloadUrl);
+                    ecoReq.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+                    ecoReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    var ecoRes = await _httpClient.SendAsync(ecoReq);
+                    if (ecoRes.IsSuccessStatusCode)
+                    {
+                        var ecoText = await ecoRes.Content.ReadAsStringAsync();
+                        if (ecoText.Contains("python", StringComparison.OrdinalIgnoreCase) ||
+                            ecoText.Contains(".py", StringComparison.OrdinalIgnoreCase) ||
+                            ecoText.Contains("uvicorn", StringComparison.OrdinalIgnoreCase))
+                        {
+                            hasPyEcosystem = true;
+                            if (ecoText.Contains("uvicorn", StringComparison.OrdinalIgnoreCase) || ecoText.Contains("fastapi", StringComparison.OrdinalIgnoreCase))
+                            {
+                                isEcoFastApi = true;
+                            }
+                            var portMatch = Regex.Match(ecoText, @"--port\s+(\d+)");
+                            if (!portMatch.Success) portMatch = Regex.Match(ecoText, @"port:\s*(\d+)", RegexOptions.IgnoreCase);
+                            if (portMatch.Success && int.TryParse(portMatch.Groups[1].Value, out var p))
+                            {
+                                ecoPort = p;
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (hasPyFile || hasPyEcosystem)
+            {
+                res.TechStack = "Python";
+                res.PackageManager = fileNames.Contains("Pipfile") ? "pipenv" :
+                                     fileNames.Contains("poetry.lock") ? "poetry" : "pip";
+                res.BuildCommand = fileNames.Contains("requirements.txt")
+                    ? "pip install -r requirements.txt"
+                    : "pip install -r requirements.txt || true";
+                res.AppPort = ecoPort > 0 ? ecoPort : 8000;
+                res.StartCommand = hasPyEcosystem
+                    ? "pm2 start ecosystem.config.js || pm2 reload ecosystem.config.js"
+                    : (fileNames.Contains("main.py") ? "python main.py" : "python app.py");
+
+                if (hasPyEcosystem)
+                {
+                    res.SuggestedDeployType = "SSH_PM2";
+                }
+
+                var isBot = fileNames.Any(f => f.Contains("bot", StringComparison.OrdinalIgnoreCase));
+                if (isEcoFastApi)
+                {
+                    res.Framework = isBot ? "FastAPI & Telegram Bot (PM2)" : "FastAPI (PM2)";
+                }
+                else if (isBot)
+                {
+                    res.Framework = "Python Telegram Bot";
+                }
+                else
+                {
+                    res.Framework = "Python App";
+                }
+
+                res.Summary = $"Dự án {res.Framework} trên GitHub ({remoteRepoFullName})";
+                res.Recommendation = hasPyEcosystem
+                    ? $"Dự án có ecosystem.config.js. Gợi ý triển khai PM2 tự khởi động qua cổng {res.AppPort}."
+                    : $"Khuyên dùng Uvicorn hoặc Systemd service trên server qua cổng {res.AppPort}.";
+                return;
+            }
+
+            // Check .NET
             if (fileNames.Any(f => f.EndsWith(".csproj") || f.EndsWith(".sln")))
             {
                 res.TechStack = "DotNet";
@@ -1228,17 +1684,7 @@ public class GitService : IGitService
                 return;
             }
 
-            if (fileNames.Contains("requirements.txt") || fileNames.Contains("pyproject.toml"))
-            {
-                res.TechStack = "Python";
-                res.Framework = "Python App";
-                res.PackageManager = "pip";
-                res.BuildCommand = "pip install -r requirements.txt";
-                res.AppPort = 8000;
-                res.Summary = $"Dự án Python trên GitHub ({remoteRepoFullName})";
-                return;
-            }
-
+            // Check Go
             if (fileNames.Contains("go.mod"))
             {
                 res.TechStack = "Go";

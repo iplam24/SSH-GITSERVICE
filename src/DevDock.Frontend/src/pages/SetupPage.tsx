@@ -54,7 +54,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   // Setup form states
   const [language, setLanguage] = useState<'vi' | 'en'>(settings.language || 'vi');
   const [theme, setTheme] = useState<string>(settings.theme || 'dark');
-  const [accentColor, setAccentColor] = useState<string>(settings.accentColor || 'emerald');
+  const [accentColor, setAccentColor] = useState<string>(settings.accentColor || 'blue');
   const [defaultShell, setDefaultShell] = useState<TerminalShellType>(settings.defaultShell || 'PowerShell');
   const [addToPath, setAddToPath] = useState<boolean>(true);
   const [registerContextMenu, setRegisterContextMenu] = useState<boolean>(true);
@@ -306,12 +306,12 @@ export const SetupPage: React.FC<SetupPageProps> = ({
                 </div>
 
                 {/* Accent Color */}
-                <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1E293B] flex flex-col gap-2.5">
+                <div className="p-4 rounded-xl bg-[#0c0d12] border border-[#1e2230] flex flex-col gap-2.5">
                   <label className="text-xs font-semibold text-slate-300">Màu sắc chủ đạo (Accent Color)</label>
                   <div className="grid grid-cols-4 gap-2">
                     {[
+                      { id: 'blue', label: 'Classic Blue', bg: 'bg-blue-500' },
                       { id: 'emerald', label: 'Emerald', bg: 'bg-emerald-500' },
-                      { id: 'blue', label: 'Cyan / Blue', bg: 'bg-blue-500' },
                       { id: 'violet', label: 'Violet', bg: 'bg-violet-500' },
                       { id: 'amber', label: 'Amber Gold', bg: 'bg-amber-500' },
                     ].map((c) => (
@@ -321,8 +321,8 @@ export const SetupPage: React.FC<SetupPageProps> = ({
                         onClick={() => setAccentColor(c.id)}
                         className={`p-2.5 rounded-lg border text-[11px] font-medium flex flex-col items-center gap-1.5 cursor-pointer transition-all ${
                           accentColor === c.id
-                            ? 'bg-[#111827] border-emerald-500 text-slate-100 shadow-sm'
-                            : 'bg-[#111827] border-[#1E293B] text-slate-400 hover:text-slate-200'
+                            ? 'bg-[#12141c] border-blue-500 text-slate-100 shadow-sm'
+                            : 'bg-[#12141c] border-[#1e2230] text-slate-400 hover:text-slate-200'
                         }`}
                       >
                         <span className={`w-4 h-4 rounded-full ${c.bg}`} />
@@ -334,14 +334,14 @@ export const SetupPage: React.FC<SetupPageProps> = ({
               </div>
 
               {/* Highlight Banner */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/30 to-blue-950/30 border border-emerald-500/20 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xl flex-shrink-0">
-                  ⌨️
+              <div className="p-4 rounded-xl bg-[#12141c] border border-[#1e2230] flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-white/[0.05] border border-white/10 text-slate-300 flex items-center justify-center font-mono font-bold text-sm flex-shrink-0">
+                  ⌘
                 </div>
                 <div className="text-xs text-slate-300">
-                  <strong className="text-emerald-400">Trải nghiệm Keyboard-First:</strong> DevDock được thiết kế
+                  <strong className="text-slate-100">Trải nghiệm Keyboard-First:</strong> DevDock được thiết kế
                   để bạn làm chủ toàn bộ môi trường với phím tắt toàn cục{' '}
-                  <kbd className="px-1.5 py-0.5 rounded bg-[#0B0F17] text-emerald-400 border border-emerald-500/40 font-mono">
+                  <kbd className="px-1.5 py-0.5 rounded bg-[#0c0d12] text-slate-200 border border-[#1e2230] font-mono text-[11px]">
                     Ctrl + Space
                   </kbd>
                   . Bạn có thể gọi terminal, tìm kiếm dự án, SSH, hay chạy Git bất kỳ lúc nào.

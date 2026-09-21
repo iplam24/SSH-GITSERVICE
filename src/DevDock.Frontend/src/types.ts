@@ -104,8 +104,147 @@ export interface SshProfile {
   hasPassword: boolean;
   hasPrivateKey: boolean;
   group?: string;
+  metadata?: SshServerMetadata;
   lastConnectedAt?: string;
   createdAt: string;
+}
+
+export interface SshCommandResult {
+  success: boolean;
+  exitCode: number;
+  output: string;
+  error: string;
+  executionTimeMs: number;
+  durationMs?: number;
+}
+
+export interface SshListeningPortItem {
+  protocol: string;
+  localAddress: string;
+  port: number;
+  state: string;
+  processName: string;
+  pid: number;
+  bindAddress?: string;
+}
+
+export interface SshServerOverview {
+  osName: string;
+  uptime: string;
+  cpuUsage: string;
+  memTotalMb: number;
+  memUsedMb: number;
+  diskTotal: string;
+  diskUsed: string;
+  diskPercent: string;
+  ufwActive: boolean;
+  ufwRules: string[];
+  osInfo?: string;
+  cpuCores?: number;
+  cpuModel?: string;
+  memoryUsedPercent?: number;
+  memoryUsedGb?: number;
+  memoryTotalGb?: number;
+  diskUsedPercent?: number;
+  diskUsedGb?: number;
+  diskTotalGb?: number;
+  loadAverage?: string;
+  kernel?: string;
+  arch?: string;
+  hostname?: string;
+  publicIp?: string;
+  ipAddresses?: string[];
+  ufwStatus?: string;
+}
+
+export interface SshDomainItem {
+  domain: string;
+  resolvedIp?: string;
+  isPointingToThisServer: boolean;
+  pointsToThisServer?: boolean;
+  hasSsl: boolean;
+  sslExpiry?: string;
+  nginxSiteName?: string;
+  targetPort?: number;
+  serverIp?: string;
+}
+
+export interface SshNginxSiteItem {
+  name: string;
+  isEnabled: boolean;
+  configPath: string;
+  domainNames: string[];
+  domains?: string[];
+  proxyPassHost?: string;
+  proxyPassPort?: number;
+  proxyPass?: string;
+  root?: string;
+  listenPorts?: string[];
+  hasSsl?: boolean;
+  isSslEnabled: boolean;
+  rawContent: string;
+}
+
+export interface SshNginxSaveRequest {
+  siteName: string;
+  domainNames: string;
+  proxyPassHost?: string;
+  proxyPassPort?: number;
+  isSpaStatic?: boolean;
+  staticRootPath?: string;
+  enableWebSocket?: boolean;
+  enableSsl?: boolean;
+  maxBodySizeMb?: string;
+  customDirectives?: string;
+}
+
+export interface SshCertbotCertificateItem {
+  domainName: string;
+  certificateName?: string;
+  domains?: string[];
+  expiryDate: string;
+  certificatePath: string;
+  daysRemaining: number;
+  daysLeft?: number;
+}
+
+export interface SshGitDeploymentItem {
+  id: string;
+  name: string;
+  repoUrl: string;
+  targetPath: string;
+  serverDirectory?: string;
+  branch: string;
+  lastCommitHash?: string;
+  lastCommitMessage?: string;
+  lastCommitDate?: string;
+  postDeployCommand?: string;
+  lastPulledAt?: string;
+}
+
+export interface SshProcessItem {
+  type: 'systemd' | 'pm2';
+  name: string;
+  id: string;
+  status: string;
+  cpu?: string;
+  memory?: string;
+  uptime?: string;
+  description?: string;
+}
+
+export interface SshSavedSnippet {
+  id: string;
+  name: string;
+  command: string;
+  description?: string;
+}
+
+export interface SshServerMetadata {
+  domains: SshDomainItem[];
+  gitDeployments: SshGitDeploymentItem[];
+  trackedSystemdServices: string[];
+  customSnippets: SshSavedSnippet[];
 }
 
 export interface SshConnectionTestResult {
@@ -588,5 +727,62 @@ export interface AddToGitIgnoreRequest {
   repoPath: string;
   pattern: string;
   autoCommit?: boolean;
+}
+
+// ------------------ WINDOWS DEV OPS (PORTS, HOSTS, ENV) ------------------
+export interface PortListeningItem {
+  port: number;
+  protocol: string;
+  localAddress: string;
+  pid: number;
+  processName: string;
+  processPath?: string;
+  memoryMb: number;
+  startTime?: string;
+  state: string;
+}
+
+export interface KillProcessResult {
+  success: boolean;
+  message: string;
+  pid: number;
+}
+
+export interface HostEntryItem {
+  id: string;
+  ipAddress: string;
+  hostnames: string[];
+  comment?: string;
+  isEnabled: boolean;
+  lineNumber: number;
+  isSystemDefault: boolean;
+}
+
+export interface EnvPathItem {
+  path: string;
+  exists: boolean;
+  errorMessage?: string;
+}
+
+export interface SystemEnvVariableItem {
+  name: string;
+  value: string;
+  target: 'User' | 'Machine';
+  isPath: boolean;
+  pathItems: EnvPathItem[];
+}
+
+export interface DotEnvKeyDiff {
+  key: string;
+  currentValue?: string;
+  exampleValue?: string;
+  status: 'missing' | 'extra' | 'matched' | 'different_value';
+}
+
+export interface DotEnvCompareResult {
+  diffEntries: DotEnvKeyDiff[];
+  missingKeysCount: number;
+  extraKeysCount: number;
+  totalKeysCount: number;
 }
 

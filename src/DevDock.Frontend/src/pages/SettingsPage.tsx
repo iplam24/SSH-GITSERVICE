@@ -471,20 +471,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 onClick={() => setActiveTab(t.id)}
                 className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-left transition-all cursor-pointer ${
                   isActive
-                    ? t.id === 'aiProviders'
-                      ? 'bg-gradient-to-r from-cyan-500/20 to-transparent text-cyan-300 font-semibold border-l-2 border-cyan-400 shadow-glow-cyan'
-                      : 'bg-gradient-to-r from-emerald-500/15 to-transparent text-emerald-300 font-semibold border-l-2 border-emerald-400 shadow-glow-emerald'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#0E1526]'
+                    ? 'bg-white/[0.08] text-slate-100 font-semibold border border-white/10'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <Icon
                     className={`w-4 h-4 ${
-                      isActive
-                        ? t.id === 'aiProviders'
-                          ? 'text-cyan-400'
-                          : 'text-emerald-400'
-                        : 'text-slate-400'
+                      isActive ? 'text-blue-400' : 'text-slate-400'
                     }`}
                   />
                   <span>{t.label}</span>
@@ -529,7 +523,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   setAiKeyInput('');
                   setIsAiModalOpen(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold rounded-lg text-xs hover:scale-105 transition-all shadow-glow-emerald cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg text-xs transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Thêm Provider AI</span>
@@ -548,9 +542,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       handleSelectPreset(p);
                       setIsAiModalOpen(true);
                     }}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0E1526] hover:bg-[#152038] border border-[#1E2C48] text-xs text-slate-300 transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12141c] hover:bg-[#181b26] border border-[#1e2230] text-xs text-slate-300 transition-colors cursor-pointer"
                   >
-                    <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                    <span className="w-2 h-2 rounded-full bg-blue-400" />
                     <span>+ {p.name}</span>
                   </button>
                 ))}
@@ -566,8 +560,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     key={p.id}
                     className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
                       p.isDefault
-                        ? 'bg-[#0E172A] border-cyan-500/40 shadow-glow-cyan'
-                        : 'bg-[#0E1424] border-[#1E2A44] hover:border-[#2D3F66]'
+                        ? 'bg-[#12141c] border-blue-500/30'
+                        : 'bg-[#0c0d12] border-[#1e2230] hover:border-[#2a2f42]'
                     }`}
                   >
                     <div>
@@ -730,7 +724,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     setModalAccountTestResult(null);
                     setIsAccountModalOpen(true);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-bold rounded-lg text-xs transition-all shadow-glow-emerald cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg text-xs transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Thêm Tài Khoản Git (PAT)</span>
@@ -739,7 +733,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
 
             {/* BƯỚC 1: Trạng thái Git Engine trên Windows */}
-            <div className="p-5 rounded-2xl bg-[#0E1424] border border-[#1E2A44] flex flex-col gap-3">
+            <div className="p-5 rounded-2xl bg-[#0c0d12] border border-[#1e2230] flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
@@ -756,10 +750,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-200">1. Trạng thái Git Engine Windows</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium ${
                         gitGlobalConfig.isGitInstalled
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                       }`}>
                         {gitGlobalConfig.isGitInstalled ? 'Đã Cài Đặt' : 'Chưa Cài Đặt'}
                       </span>
@@ -777,7 +771,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     type="button"
                     onClick={handleInstallGitViaWinget}
                     disabled={isInstallingGitWinget}
-                    className="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-glow-emerald cursor-pointer disabled:opacity-50"
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg text-xs flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {isInstallingGitWinget ? (
                       <>
@@ -975,8 +969,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       key={acc.id}
                       className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
                         acc.isDefault
-                          ? 'bg-[#0E172A] border-emerald-500/40 shadow-glow-emerald'
-                          : 'bg-[#0E1424] border-[#1E2A44] hover:border-[#2C3E63]'
+                          ? 'bg-[#12141c] border-blue-500/30'
+                          : 'bg-[#0c0d12] border-[#1e2230] hover:border-[#2a2f42]'
                       }`}
                     >
                       <div>
@@ -1070,28 +1064,29 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <span>Giao diện & Chủ đề Windows Fluent</span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Tùy chỉnh màu sắc điểm nhấn (Accent Color) và hiệu ứng ánh sáng Neon Obsidian.
+                Tùy chỉnh màu sắc điểm nhấn (Accent Color) và phong cách hiển thị.
               </p>
             </div>
 
             {/* Accent Colors */}
-            <div className="p-5 rounded-2xl bg-[#0E1424] border border-[#1E2A44] flex flex-col gap-4">
+            <div className="p-5 rounded-2xl bg-[#0c0d12] border border-[#1e2230] flex flex-col gap-4">
               <div>
                 <span className="text-xs font-bold text-slate-200">Màu sắc chủ đạo (Accent Color)</span>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Thay đổi màu ánh sáng cho các nút bấm, viền phát sáng và trạng thái hoạt động trên toàn ứng dụng.
+                  Thay đổi màu điểm nhấn cho các nút hành động, chỉ báo trạng thái và tiêu điểm trên toàn ứng dụng.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
                 {[
-                  { id: 'emerald', label: 'Emerald Cyber', color: 'bg-emerald-500', glow: 'shadow-emerald-500/30' },
-                  { id: 'cyan', label: 'Electric Cyan', color: 'bg-cyan-500', glow: 'shadow-cyan-500/30' },
-                  { id: 'violet', label: 'Obsidian Violet', color: 'bg-purple-500', glow: 'shadow-purple-500/30' },
-                  { id: 'rose', label: 'Crimson Red', color: 'bg-rose-500', glow: 'shadow-rose-500/30' },
-                  { id: 'amber', label: 'Amber Gold', color: 'bg-amber-500', glow: 'shadow-amber-500/30' },
+                  { id: 'blue', label: 'Classic Blue', color: 'bg-blue-500' },
+                  { id: 'emerald', label: 'Emerald', color: 'bg-emerald-500' },
+                  { id: 'cyan', label: 'Electric Cyan', color: 'bg-cyan-500' },
+                  { id: 'violet', label: 'Violet', color: 'bg-purple-500' },
+                  { id: 'rose', label: 'Crimson Red', color: 'bg-rose-500' },
+                  { id: 'amber', label: 'Amber Gold', color: 'bg-amber-500' },
                 ].map((c) => {
-                  const isSelected = settings.accentColor === c.id;
+                  const isSelected = (settings.accentColor || 'blue') === c.id;
                   return (
                     <button
                       key={c.id}
@@ -1103,12 +1098,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                       }}
                       className={`flex flex-col items-center gap-2.5 p-3 rounded-xl border text-xs cursor-pointer transition-all ${
                         isSelected
-                          ? 'border-emerald-400 bg-emerald-500/15 text-slate-100 font-bold shadow-lg'
-                          : 'border-[#1E2A44] bg-[#060911] text-slate-400 hover:text-slate-200 hover:border-[#2C3E63]'
+                          ? 'border-blue-500/60 bg-blue-500/10 text-slate-100 font-semibold shadow-sm'
+                          : 'border-[#1e2230] bg-[#12141c] text-slate-400 hover:text-slate-200 hover:border-[#2a2f42]'
                       }`}
                     >
-                      <span className={`w-6 h-6 rounded-full ${c.color} shadow-md ${c.glow} flex items-center justify-center`}>
-                        {isSelected && <CheckCircle2 className="w-4 h-4 text-slate-950 font-bold" />}
+                      <span className={`w-6 h-6 rounded-full ${c.color} flex items-center justify-center`}>
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-white font-bold" />}
                       </span>
                       <span className="text-[11px]">{c.label}</span>
                     </button>
@@ -1117,17 +1112,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </div>
 
               {/* Theme Preview Card */}
-              <div className="mt-2 p-4 rounded-xl bg-[#070B14] border border-[#1E2A44] flex flex-col gap-2">
-                <span className="text-[11px] font-mono uppercase text-slate-400 font-semibold">Xem trước giao diện hiện tại:</span>
+              <div className="mt-2 p-4 rounded-xl bg-[#12141c] border border-[#1e2230] flex flex-col gap-2.5">
+                <span className="text-[11px] font-mono uppercase text-slate-400 font-semibold tracking-wider">Xem trước giao diện hiện tại:</span>
                 <div className="flex items-center gap-3">
-                  <div className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/40">
+                  <div className="px-3 py-1 rounded-md bg-white/[0.06] text-slate-200 text-xs font-medium border border-white/10">
                     Badge Trạng Thái
                   </div>
-                  <button type="button" className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 text-xs font-bold shadow-glow-emerald">
+                  <button type="button" className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors cursor-pointer">
                     Nút Hoạt Động
                   </button>
-                  <span className="text-xs font-mono text-slate-300">
-                    Chế độ: <strong className="text-emerald-400">Dark Obsidian Mica (Windows 11)</strong>
+                  <span className="text-xs text-slate-400">
+                    Chế độ: <strong className="text-slate-200 font-medium">Dark Modern (Linear & Raycast Inspired)</strong>
                   </span>
                 </div>
               </div>
@@ -1433,9 +1428,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="p-5 rounded-2xl bg-[#0E1424] border border-emerald-500/30 flex flex-col justify-between gap-4 shadow-glow-emerald">
+              <div className="p-5 rounded-2xl bg-[#0c0d12] border border-[#1e2230] flex flex-col justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                  <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
                     <Lock className="w-4 h-4" />
                     <span>Trạng thái Mã hóa: ĐANG HOẠT ĐỘNG (Active)</span>
                   </div>
@@ -1730,7 +1725,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveAiProvider}
-                  className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 text-xs font-bold rounded-lg cursor-pointer hover:scale-105 transition-all shadow-glow-emerald"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
                 >
                   Lưu Nhà Cung Cấp
                 </button>
@@ -1981,7 +1976,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveAccount}
-                  className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 text-xs font-bold rounded-lg cursor-pointer hover:scale-105 transition-all shadow-glow-emerald"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
                 >
                   Lưu Tài Khoản (DPAPI)
                 </button>

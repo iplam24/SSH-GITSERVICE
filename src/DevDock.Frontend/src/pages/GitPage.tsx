@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   GitBranch,
   ArrowDown,
@@ -46,8 +46,11 @@ import {
   Globe,
   GitFork,
   Star,
-  MoreHorizontal,
+  Folder,
   FolderOpen,
+  WrapText,
+  Eye,
+  Filter,
 } from 'lucide-react';
 import {
   ProjectItem,
@@ -108,6 +111,10 @@ export const GitPage: React.FC<GitPageProps> = ({
   const [selectedFile, setSelectedFile] = useState<GitFileStatus | null>(null);
   const [diffResult, setDiffResult] = useState<GitDiffResult | null>(null);
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>('unified');
+  const [isWordWrap, setIsWordWrap] = useState(false);
+  const [viewFullFile, setViewFullFile] = useState(false);
+  const [fileFilter, setFileFilter] = useState('');
+  const [loadingDiff, setLoadingDiff] = useState(false);
   const [isGeneratingAiCommit, setIsGeneratingAiCommit] = useState(false);
 
   // History Tab states
@@ -308,14 +315,109 @@ export const GitPage: React.FC<GitPageProps> = ({
     }
   }, [activeRepoPath]);
 
-  const loadFileDiff = async (repo: string, file: GitFileStatus) => {
+  const splitFilePath = (pathStr: string) => {
+    const normalized = (pathStr || '').replace(/\\/g, '/');
+    const lastSlash = normalized.lastIndexOf('/');
+    if (lastSlash === -1) {
+      return { fileName: normalized, dirPath: '' };
+    }
+    return {
+      fileName: normalized.substring(lastSlash + 1),
+      dirPath: normalized.substring(0, lastSlash + 1),
+    };
+  };
+
+  const diffStats = useMemo(() => {
+    let additions = 0;
+    let deletions = 0;
+    if (diffResult?.hunks) {
+      for (const hunk of diffResult.hunks) {
+        for (const line of hunk.lines) {
+          if (line.type === 'Added') additions++;
+          else if (line.type === 'Deleted') deletions++;
+        }
+      }
+    }
+    return { additions, deletions };
+  }, [diffResult]);
+
+  const loadFileDiff = async (repo: string, file: GitFileStatus, fullFileOverride?: boolean) => {
     setSelectedFile(file);
+    setLoadingDiff(true);
+    const isFull = fullFileOverride !== undefined ? fullFileOverride : viewFullFile;
     try {
-      const diff = await api.getFileDiff(repo, file.path, file.isStaged);
+      const diff = await api.getFileDiff(repo, file.path, file.isStaged, isFull ? 99999 : 3);
       setDiffResult(diff);
     } catch (err: any) {
       setDiffResult(null);
+    } finally {
+      setLoadingDiff(false);
     }
+  };
+
+  const handleToggleFullFile = () => {
+    const nextVal = !viewFullFile;
+    setViewFullFile(nextVal);
+    if (activeRepoPath && selectedFile) {
+      loadFileDiff(activeRepoPath, selectedFile, nextVal);
+    }
+  };
+
+  const handleOpenFileInEditor = async (filePath: string) => {
+    if (!activeRepoPath) return;
+    try {
+      const normRepo = activeRepoPath.replace(/\\/g, '/').replace(/\/$/, '');
+      const normFile = filePath.replace(/\\/g, '/').replace(/^\//, '');
+      const fullPath = normFile.startsWith(normRepo) ? normFile : `${normRepo}/${normFile}`;
+      await api.openEditor(fullPath);
+      onShowToast(`Đang mở ${splitFilePath(filePath).fileName} trong trình soạn thảo...`, 'info');
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể mở trình soạn thảo', 'error');
+    }
+  };
+
+  const renderStatusBadge = (status: string) => {
+    const s = (status || '').trim().toUpperCase();
+    if (s.startsWith('M')) {
+      return (
+        <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0 select-none" title="Đã sửa đổi (Modified)">
+          M
+        </span>
+      );
+    }
+    if (s.startsWith('A')) {
+      return (
+        <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0 select-none" title="Thêm mới (Added)">
+          A
+        </span>
+      );
+    }
+    if (s.startsWith('D')) {
+      return (
+        <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 shrink-0 select-none" title="Đã xóa (Deleted)">
+          D
+        </span>
+      );
+    }
+    if (s.startsWith('U') || s.startsWith('?')) {
+      return (
+        <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 shrink-0 select-none" title="Chưa theo dõi (Untracked)">
+          U
+        </span>
+      );
+    }
+    if (s.startsWith('R')) {
+      return (
+        <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded bg-purple-500/15 text-purple-400 border border-purple-500/30 shrink-0 select-none" title="Đã đổi tên (Renamed)">
+          R
+        </span>
+      );
+    }
+    return (
+      <span className="px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded bg-slate-500/15 text-slate-400 border border-slate-500/30 shrink-0 select-none">
+        {s[0] || '?'}
+      </span>
+    );
   };
 
   const handleStageFile = async (filePath: string) => {
@@ -376,9 +478,33 @@ export const GitPage: React.FC<GitPageProps> = ({
 
   const handleCommit = async () => {
     if (!activeRepoPath || !commitSubject.trim()) {
-      onShowToast('Vui lòng nhập thông điệp commit', 'error');
+      onShowToast('Vui lòng nhập tiêu đề commit', 'error');
       return;
     }
+
+    const stagedCount = repoStatus?.stagedFiles?.length ?? 0;
+    const unstagedCount = (repoStatus?.unstagedFiles?.length ?? 0) + (repoStatus?.untrackedFiles?.length ?? 0);
+
+    if (stagedCount === 0) {
+      if (unstagedCount === 0) {
+        onShowToast('Không có thay đổi nào trong kho mã nguồn để commit', 'info');
+        return;
+      }
+
+      const confirmAutoStage = confirm(
+        'Chưa có tệp nào được đưa vào hàng đợi (Staged).\n\nBạn có muốn tự động Stage tất cả tệp thay đổi và tạo commit ngay không?'
+      );
+      if (!confirmAutoStage) return;
+
+      try {
+        onShowToast('Đang tự động Stage tất cả các tệp thay đổi...', 'info');
+        await api.stageAll(activeRepoPath);
+      } catch (err: any) {
+        onShowToast(err.message || 'Lỗi khi Stage tất cả tệp', 'error');
+        return;
+      }
+    }
+
     try {
       const fullMsg = commitBody.trim()
         ? `${commitSubject.trim()}\n\n${commitBody.trim()}`
@@ -387,7 +513,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       setCommitSubject('');
       setCommitBody('');
       await loadRepoData(activeRepoPath);
-      onShowToast('Đã tạo commit thành công', 'success');
+      onShowToast('Đã tạo commit thành công!', 'success');
     } catch (err: any) {
       onShowToast(err.message || 'Commit thất bại', 'error');
     }
@@ -787,16 +913,21 @@ export const GitPage: React.FC<GitPageProps> = ({
 
   // Run automated repo tech inspection
   const runRepoInspection = async (path?: string, accountId?: string, remoteName?: string) => {
-    const targetPath = path !== undefined ? path : (cicdTargetRepoPath || activeRepoPath);
-    const targetAcc = accountId !== undefined ? accountId : (cicdAccountId || selectedAccountId);
+    let targetPath = path !== undefined ? path : cicdTargetRepoPath;
     const targetRemote = remoteName !== undefined ? remoteName : cicdRemoteFullName;
+    const targetAcc = accountId !== undefined ? accountId : (cicdAccountId || selectedAccountId);
+
+    // If targetPath is not set, only fallback to activeRepoPath if there is NO remote repo target
+    if (!targetPath && !targetRemote) {
+      targetPath = activeRepoPath;
+    }
 
     setIsInspectingRepo(true);
     setRepoInspection(null);
 
     try {
       const res = await api.inspectRepoTech({
-        repoPath: targetPath,
+        repoPath: targetPath || '',
         accountId: targetAcc,
         remoteRepoFullName: targetRemote,
       });
@@ -816,7 +947,11 @@ export const GitPage: React.FC<GitPageProps> = ({
         } else if (res.techStack === 'DotNet') {
           setCicdPostScript('dotnet publish -c Release -o ./publish\nsudo systemctl restart kestrel-app || true');
         } else if (res.techStack === 'Python') {
-          setCicdPostScript(`pip install -r requirements.txt\n${res.startCommand || 'uvicorn main:app --host 0.0.0.0 --port 8000 &'} || true`);
+          if (res.suggestedDeployType === 'SSH_PM2' || res.framework?.toLowerCase().includes('pm2') || res.startCommand?.includes('pm2')) {
+            setCicdPostScript(`pip install -r requirements.txt || true\npm2 reload ecosystem.config.js || pm2 restart ecosystem.config.js || pm2 start ecosystem.config.js`);
+          } else {
+            setCicdPostScript(`pip install -r requirements.txt || true\n${res.startCommand || 'uvicorn main:app --host 0.0.0.0 --port 8000 &'} || true`);
+          }
         } else if (res.techStack === 'Go') {
           setCicdPostScript('go build -o app\n./app &');
         }
@@ -826,6 +961,12 @@ export const GitPage: React.FC<GitPageProps> = ({
           setCicdGeneratePm2Config(true);
         } else if (res.techStack === 'DotNet') {
           setCicdGenerateSystemd(true);
+        } else if (res.techStack === 'Python') {
+          if (res.suggestedDeployType === 'SSH_PM2') {
+            setCicdGeneratePm2Config(false);
+          } else {
+            setCicdGenerateSystemd(true);
+          }
         }
       }
     } catch (err: any) {
@@ -836,10 +977,28 @@ export const GitPage: React.FC<GitPageProps> = ({
   };
 
   const openCicdModalForRepo = (repoPath?: string, repoName?: string, accountId?: string, remoteFullName?: string) => {
-    const finalPath = repoPath !== undefined ? repoPath : activeRepoPath;
-    const finalName = repoName || (finalPath ? (projects.find((p) => p.path === finalPath)?.name || finalPath) : 'Dự Án');
-    const finalAcc = accountId || selectedAccountId;
+    let finalPath = repoPath !== undefined ? repoPath : '';
     const finalRemote = remoteFullName || '';
+    const finalAcc = accountId || selectedAccountId;
+
+    // If repoPath was not explicitly provided but remote is given, search for a matching local project
+    if (!finalPath && finalRemote) {
+      const simpleName = repoName || (finalRemote.includes('/') ? finalRemote.split('/').pop()! : finalRemote);
+      const matchingProj = projects.find(
+        (p) =>
+          p.name.toLowerCase() === simpleName.toLowerCase() ||
+          p.path.toLowerCase().replace(/\\/g, '/').endsWith(`/${simpleName.toLowerCase()}`)
+      );
+      if (matchingProj) {
+        finalPath = matchingProj.path;
+      } else if (activeRepoPath && activeRepoPath.toLowerCase().replace(/\\/g, '/').endsWith(`/${simpleName.toLowerCase()}`)) {
+        finalPath = activeRepoPath;
+      }
+    } else if (!finalPath && !finalRemote) {
+      finalPath = activeRepoPath;
+    }
+
+    const finalName = repoName || (finalPath ? (projects.find((p) => p.path === finalPath)?.name || finalPath) : (finalRemote || 'Dự Án'));
 
     setCicdTargetRepoPath(finalPath);
     setCicdTargetRepoName(finalName);
@@ -853,8 +1012,8 @@ export const GitPage: React.FC<GitPageProps> = ({
 
   // Handle setting up CI/CD
   const handleSetupCicd = async () => {
-    const targetFolder = cicdTargetRepoPath || activeRepoPath;
-    if (!targetFolder) {
+    const targetFolder = cicdTargetRepoPath || (!cicdRemoteFullName ? activeRepoPath : '');
+    if (!targetFolder && !cicdRemoteFullName) {
       onShowToast('Vui lòng chọn hoặc nhập đường dẫn thư mục kho lưu trữ!', 'error');
       return;
     }
@@ -1002,6 +1161,63 @@ export const GitPage: React.FC<GitPageProps> = ({
     }
   };
 
+  const handleBrowseFolderForCustom = async () => {
+    try {
+      const res = await api.browseFolder(customFolderPath);
+      if (res && res.folder) {
+        setCustomFolderPath(res.folder);
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể mở hộp thoại chọn thư mục', 'error');
+    }
+  };
+
+  const handleOpenInExplorer = async (path: string) => {
+    if (!path) {
+      onShowToast('Chưa có đường dẫn thư mục', 'error');
+      return;
+    }
+    try {
+      await api.openExplorer(path);
+      onShowToast('Đang mở thư mục trong Windows Explorer', 'info');
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể mở thư mục trong Explorer', 'error');
+    }
+  };
+
+  const handleBrowseFolderForInit = async () => {
+    try {
+      const res = await api.browseFolder(initRepoPath || activeRepoPath);
+      if (res && res.folder) {
+        setInitRepoPath(res.folder);
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể mở hộp thoại chọn thư mục', 'error');
+    }
+  };
+
+  const handleBrowseFolderForClone = async () => {
+    try {
+      const res = await api.browseFolder(cloneDestPath);
+      if (res && res.folder) {
+        setCloneDestPath(res.folder);
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể mở hộp thoại chọn thư mục', 'error');
+    }
+  };
+
+  const handleBrowseFolderForPush = async () => {
+    try {
+      const res = await api.browseFolder(pushLocalPath || activeRepoPath);
+      if (res && res.folder) {
+        setPushLocalPath(res.folder);
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể mở hộp thoại chọn thư mục', 'error');
+    }
+  };
+
   const openGitIgnoreModal = async (path?: string) => {
     const target = path || activeRepoPath;
     if (!target) {
@@ -1139,6 +1355,18 @@ export const GitPage: React.FC<GitPageProps> = ({
               <span>Mở Cục Bộ</span>
             </button>
 
+            {activeRepoPath && (
+              <button
+                type="button"
+                onClick={() => handleOpenInExplorer(activeRepoPath)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
+                title={`Mở "${activeRepoPath}" trong Windows File Explorer`}
+              >
+                <Folder className="w-3.5 h-3.5 text-sky-400" />
+                <span>Explorer</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => openGitIgnoreModal()}
@@ -1195,8 +1423,7 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => {
-              setCicdResult(null);
-              setIsCicdModalOpen(true);
+              openCicdModalForRepo(activeRepoPath, undefined, undefined, '');
             }}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
             title="Tự động thiết lập GitHub Actions CI/CD triển khai ứng dụng lên máy chủ Server"
@@ -1383,11 +1610,33 @@ export const GitPage: React.FC<GitPageProps> = ({
         {activeTab === 'changes' && (
           <div className="flex-1 flex overflow-hidden">
             {/* Left Column: Changed Files List & Commit Box */}
-            <div className="w-80 border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col justify-between flex-shrink-0 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4">
+            <div className="w-[340px] sm:w-[380px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col justify-between flex-shrink-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+                {/* Search Filter for Changed Files */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                  <input
+                    type="text"
+                    value={fileFilter}
+                    onChange={(e) => setFileFilter(e.target.value)}
+                    placeholder="Lọc tệp thay đổi..."
+                    className="w-full bg-[#12151f] border border-[#1e2332] rounded-md pl-8 pr-7 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent font-sans"
+                  />
+                  {fileFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setFileFilter('')}
+                      className="absolute right-2 top-2 text-slate-500 hover:text-slate-300 cursor-pointer"
+                      title="Xóa bộ lọc"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
                 {/* Staged files */}
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
+                  <div className="flex items-center justify-between pb-1.5 mb-1.5 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       <span>Đã Stage ({repoStatus?.stagedFiles.length || 0})</span>
@@ -1396,7 +1645,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                       <button
                         type="button"
                         onClick={handleUnstageAll}
-                        className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-1 cursor-pointer"
+                        className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <Minus className="w-3 h-3" />
                         <span>Bỏ tất cả</span>
@@ -1404,43 +1653,76 @@ export const GitPage: React.FC<GitPageProps> = ({
                     )}
                   </div>
 
-                  {repoStatus?.stagedFiles.map((file) => (
-                    <div
-                      key={file.path}
-                      onClick={() => loadFileDiff(activeRepoPath, file)}
-                      className={`flex items-center justify-between p-2 rounded-md text-xs cursor-pointer group transition-colors ${
-                        selectedFile?.path === file.path
-                          ? 'bg-white/[0.08] text-slate-100 font-medium'
-                          : 'text-slate-300 hover:bg-white/[0.03]'
-                      }`}
-                    >
-                      <span className="truncate flex-1 font-mono text-[11px]">{file.path}</span>
-                      <div className="flex items-center gap-1">
-                        <span className="px-1 text-[9px] font-mono rounded bg-emerald-500/15 text-emerald-400">
-                          {file.status[0]}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUnstageFile(file.path);
-                          }}
-                          className="p-1 text-slate-400 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Bỏ khỏi stage"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="flex flex-col gap-1">
+                    {(repoStatus?.stagedFiles || [])
+                      .filter(
+                        (f) =>
+                          !fileFilter.trim() ||
+                          f.path.toLowerCase().includes(fileFilter.toLowerCase().trim())
+                      )
+                      .map((file) => {
+                        const { fileName, dirPath } = splitFilePath(file.path);
+                        const isSelected = selectedFile?.path === file.path;
+                        return (
+                          <div
+                            key={file.path}
+                            onClick={() => loadFileDiff(activeRepoPath, file)}
+                            className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer group transition-all duration-150 border ${
+                              isSelected
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-slate-100 font-medium shadow-sm'
+                                : 'border-transparent text-slate-300 hover:bg-[#161a26] hover:border-[#22283a]'
+                            }`}
+                            title={file.path}
+                          >
+                            <div className="flex flex-col min-w-0 flex-1 pr-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <FileCode
+                                  className={`w-3.5 h-3.5 shrink-0 ${
+                                    isSelected ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
+                                  }`}
+                                />
+                                <span
+                                  className={`text-xs font-semibold truncate ${
+                                    isSelected ? 'text-emerald-300' : 'text-slate-200 group-hover:text-slate-100'
+                                  }`}
+                                >
+                                  {fileName}
+                                </span>
+                              </div>
+                              <span
+                                className="text-[10px] text-slate-500 font-mono truncate pl-5 mt-0.5"
+                                title={file.path}
+                              >
+                                {dirPath || './'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {renderStatusBadge(file.status)}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnstageFile(file.path);
+                                }}
+                                className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                                title="Bỏ khỏi stage"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
                   {repoStatus?.stagedFiles.length === 0 && (
-                    <div className="text-[11px] text-slate-500 py-2 italic">Chưa có tệp nào được stage</div>
+                    <div className="text-[11px] text-slate-500 py-2 italic px-1">Chưa có tệp nào được stage</div>
                   )}
                 </div>
 
                 {/* Unstaged files */}
                 <div>
-                  <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
+                  <div className="flex items-center justify-between pb-1.5 mb-1.5 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
                     <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-amber-400" />
                       <span>Chưa Stage ({repoStatus?.unstagedFiles.length || 0})</span>
@@ -1449,7 +1731,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                       <button
                         type="button"
                         onClick={handleStageAll}
-                        className="text-[10px] text-slate-400 hover:text-emerald-400 flex items-center gap-1 cursor-pointer"
+                        className="text-[10px] text-slate-400 hover:text-emerald-400 flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <Plus className="w-3 h-3" />
                         <span>Stage tất cả</span>
@@ -1457,111 +1739,177 @@ export const GitPage: React.FC<GitPageProps> = ({
                     )}
                   </div>
 
-                  {repoStatus?.unstagedFiles.map((file) => (
-                    <div
-                      key={file.path}
-                      onClick={() => loadFileDiff(activeRepoPath, file)}
-                      className={`flex items-center justify-between p-2 rounded-md text-xs cursor-pointer group transition-colors ${
-                        selectedFile?.path === file.path
-                          ? 'bg-white/[0.08] text-slate-100 font-medium'
-                          : 'text-slate-300 hover:bg-white/[0.03]'
-                      }`}
-                    >
-                      <span className="truncate flex-1 font-mono text-[11px]">{file.path}</span>
-                      <div className="flex items-center gap-1">
-                        <span className="px-1 text-[9px] font-mono rounded bg-amber-500/15 text-amber-400">
-                          {file.status[0]}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStageFile(file.path);
-                          }}
-                          className="p-1 text-slate-400 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Đưa vào stage"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDiscardChanges(file.path);
-                          }}
-                          className="p-1 text-slate-400 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Hủy thay đổi"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleQuickIgnoreFile(file.path);
-                          }}
-                          className="p-1 text-slate-400 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title={`Bỏ qua tệp "${file.path}" (Thêm vào .gitignore)`}
-                        >
-                          <Shield className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="flex flex-col gap-1">
+                    {(repoStatus?.unstagedFiles || [])
+                      .filter(
+                        (f) =>
+                          !fileFilter.trim() ||
+                          f.path.toLowerCase().includes(fileFilter.toLowerCase().trim())
+                      )
+                      .map((file) => {
+                        const { fileName, dirPath } = splitFilePath(file.path);
+                        const isSelected = selectedFile?.path === file.path;
+                        return (
+                          <div
+                            key={file.path}
+                            onClick={() => loadFileDiff(activeRepoPath, file)}
+                            className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer group transition-all duration-150 border ${
+                              isSelected
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-slate-100 font-medium shadow-sm'
+                                : 'border-transparent text-slate-300 hover:bg-[#161a26] hover:border-[#22283a]'
+                            }`}
+                            title={file.path}
+                          >
+                            <div className="flex flex-col min-w-0 flex-1 pr-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <FileCode
+                                  className={`w-3.5 h-3.5 shrink-0 ${
+                                    isSelected ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
+                                  }`}
+                                />
+                                <span
+                                  className={`text-xs font-semibold truncate ${
+                                    isSelected ? 'text-emerald-300' : 'text-slate-200 group-hover:text-slate-100'
+                                  }`}
+                                >
+                                  {fileName}
+                                </span>
+                              </div>
+                              <span
+                                className="text-[10px] text-slate-500 font-mono truncate pl-5 mt-0.5"
+                                title={file.path}
+                              >
+                                {dirPath || './'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {renderStatusBadge(file.status)}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStageFile(file.path);
+                                }}
+                                className="p-1 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                                title="Đưa vào stage"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDiscardChanges(file.path);
+                                }}
+                                className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                                title="Hủy thay đổi trong tệp này"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleQuickIgnoreFile(file.path);
+                                }}
+                                className="p-1 rounded text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                                title={`Bỏ qua tệp "${file.path}" (Thêm vào .gitignore)`}
+                              >
+                                <Shield className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
                   {repoStatus?.unstagedFiles.length === 0 && (
-                    <div className="text-[11px] text-slate-500 py-2 italic">Không có thay đổi chưa stage</div>
+                    <div className="text-[11px] text-slate-500 py-2 italic px-1">Không có thay đổi chưa stage</div>
                   )}
                 </div>
 
                 {/* Untracked files */}
                 {repoStatus && repoStatus.untrackedFiles.length > 0 && (
                   <div>
-                    <div className="flex items-center justify-between pb-1.5 mb-1 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
+                    <div className="flex items-center justify-between pb-1.5 mb-1.5 text-xs font-semibold text-slate-300 border-b border-[#1a1e2a]">
                       <div className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-blue-400" />
                         <span>Tệp mới chưa theo dõi ({repoStatus.untrackedFiles.length})</span>
                       </div>
                     </div>
-                    {repoStatus.untrackedFiles.map((file) => (
-                      <div
-                        key={file.path}
-                        onClick={() => loadFileDiff(activeRepoPath, file)}
-                        className={`flex items-center justify-between p-2 rounded-md text-xs cursor-pointer group transition-colors ${
-                          selectedFile?.path === file.path
-                            ? 'bg-white/[0.08] text-slate-100 font-medium'
-                            : 'text-slate-300 hover:bg-white/[0.03]'
-                        }`}
-                      >
-                        <span className="truncate flex-1 font-mono text-[11px]">{file.path}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="px-1 text-[9px] font-mono rounded bg-blue-500/15 text-blue-400">
-                            U
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStageFile(file.path);
-                            }}
-                            className="p-1 text-slate-400 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Đưa vào stage"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleQuickIgnoreFile(file.path);
-                            }}
-                            className="p-1 text-slate-400 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                            title={`Bỏ qua tệp "${file.path}" (Thêm vào .gitignore)`}
-                          >
-                            <Shield className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                    <div className="flex flex-col gap-1">
+                      {repoStatus.untrackedFiles
+                        .filter(
+                          (f) =>
+                            !fileFilter.trim() ||
+                            f.path.toLowerCase().includes(fileFilter.toLowerCase().trim())
+                        )
+                        .map((file) => {
+                          const { fileName, dirPath } = splitFilePath(file.path);
+                          const isSelected = selectedFile?.path === file.path;
+                          return (
+                            <div
+                              key={file.path}
+                              onClick={() => loadFileDiff(activeRepoPath, file)}
+                              className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer group transition-all duration-150 border ${
+                                isSelected
+                                  ? 'bg-emerald-500/10 border-emerald-500/40 text-slate-100 font-medium shadow-sm'
+                                  : 'border-transparent text-slate-300 hover:bg-[#161a26] hover:border-[#22283a]'
+                              }`}
+                              title={file.path}
+                            >
+                              <div className="flex flex-col min-w-0 flex-1 pr-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <FileCode
+                                    className={`w-3.5 h-3.5 shrink-0 ${
+                                      isSelected ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
+                                    }`}
+                                  />
+                                  <span
+                                    className={`text-xs font-semibold truncate ${
+                                      isSelected ? 'text-emerald-300' : 'text-slate-200 group-hover:text-slate-100'
+                                    }`}
+                                  >
+                                    {fileName}
+                                  </span>
+                                </div>
+                                <span
+                                  className="text-[10px] text-slate-500 font-mono truncate pl-5 mt-0.5"
+                                  title={file.path}
+                                >
+                                  {dirPath || './'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                {renderStatusBadge('U')}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStageFile(file.path);
+                                  }}
+                                  className="p-1 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                                  title="Đưa vào stage"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleQuickIgnoreFile(file.path);
+                                  }}
+                                  className="p-1 rounded text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                                  title={`Bỏ qua tệp "${file.path}" (Thêm vào .gitignore)`}
+                                >
+                                  <Shield className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1574,7 +1922,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                     type="button"
                     onClick={handleAiGenerateCommit}
                     disabled={isGeneratingAiCommit || !activeRepoPath}
-                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-[#12151f] hover:bg-[#181c28] border border-[#1e2332] text-slate-300 font-medium transition-colors cursor-pointer"
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-[#12151f] hover:bg-[#181c28] border border-[#1e2332] text-slate-300 font-medium transition-colors cursor-pointer disabled:opacity-50"
                     title="Phân tích thay đổi git và sinh thông điệp commit tự động bằng AI"
                   >
                     <Sparkles className={`w-3 h-3 ${isGeneratingAiCommit ? 'animate-spin text-accent' : 'text-accent'}`} />
@@ -1605,7 +1953,11 @@ export const GitPage: React.FC<GitPageProps> = ({
                   className="w-full py-1.5 bg-accent hover:bg-accent-hover disabled:opacity-40 text-white font-medium text-xs rounded-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Tạo Commit (Ctrl+Enter)</span>
+                  <span>
+                    {(repoStatus?.stagedFiles?.length ?? 0) > 0
+                      ? `Tạo Commit (${repoStatus?.stagedFiles?.length} tệp Staged)`
+                      : 'Stage tất cả & Tạo Commit'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -1614,133 +1966,298 @@ export const GitPage: React.FC<GitPageProps> = ({
             <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
               {selectedFile ? (
                 <>
-                  <div className="h-9 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <FileCode className="w-3.5 h-3.5 text-slate-400" />
-                      <span className="text-xs font-mono font-medium text-slate-200">
+                  {/* Diff Viewer Toolbar Header */}
+                  <div className="h-10 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0 gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileCode className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="text-xs font-mono font-semibold text-slate-200 truncate" title={selectedFile.path}>
                         {selectedFile.path}
                       </span>
-                      {selectedFile.isStaged && (
-                        <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-mono">
+                      {selectedFile.isStaged ? (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-mono border border-emerald-500/30 shrink-0">
                           Staged
                         </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[10px] font-mono border border-amber-500/30 shrink-0">
+                          Working Tree
+                        </span>
+                      )}
+                      {(diffStats.additions > 0 || diffStats.deletions > 0) && (
+                        <div className="hidden md:flex items-center gap-1.5 text-[10px] font-mono shrink-0 ml-1">
+                          {diffStats.additions > 0 && (
+                            <span className="text-emerald-400 font-semibold bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                              +{diffStats.additions}
+                            </span>
+                          )}
+                          {diffStats.deletions > 0 && (
+                            <span className="text-rose-400 font-semibold bg-rose-950/60 px-1.5 py-0.2 rounded border border-rose-500/30">
+                              -{diffStats.deletions}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1 bg-[#12151f] p-0.5 rounded-md border border-[#1e2332]">
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Open file in Editor */}
                       <button
                         type="button"
-                        onClick={() => setDiffMode('unified')}
-                        className={`px-2 py-0.5 text-xs rounded font-medium cursor-pointer transition-colors ${
-                          diffMode === 'unified'
-                            ? 'bg-white/[0.08] text-slate-100'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
+                        onClick={() => handleOpenFileInEditor(selectedFile.path)}
+                        className="px-2.5 py-1 text-xs rounded-md bg-[#12151f] hover:bg-[#1b2030] text-slate-300 hover:text-slate-100 border border-[#1e2332] flex items-center gap-1.5 transition-colors cursor-pointer shadow-subtle"
+                        title="Mở tệp này trong VS Code hoặc trình soạn thảo mặc định"
                       >
-                        Gộp dòng
+                        <ExternalLink className="w-3 h-3 text-slate-400" />
+                        <span className="hidden sm:inline">Mở Editor</span>
                       </button>
+
+                      {/* Toggle View Mode: Diff hunks vs Full file */}
+                      <div className="flex items-center bg-[#12151f] p-0.5 rounded-md border border-[#1e2332]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (viewFullFile) handleToggleFullFile();
+                          }}
+                          className={`px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors flex items-center gap-1 ${
+                            !viewFullFile
+                              ? 'bg-white/[0.08] text-slate-100 font-semibold shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                          title="Chỉ hiển thị các đoạn mã có sự thay đổi"
+                        >
+                          <Layers className="w-3 h-3" />
+                          <span>Chỉ thay đổi</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!viewFullFile) handleToggleFullFile();
+                          }}
+                          className={`px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors flex items-center gap-1 ${
+                            viewFullFile
+                              ? 'bg-emerald-500/20 text-emerald-300 font-semibold shadow-sm border border-emerald-500/30'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                          title="Hiển thị toàn bộ tệp với các dòng thay đổi được đánh dấu trong ngữ cảnh"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Toàn bộ tệp</span>
+                        </button>
+                      </div>
+
+                      {/* Word Wrap Toggle */}
                       <button
                         type="button"
-                        onClick={() => setDiffMode('split')}
-                        className={`px-2 py-0.5 text-xs rounded font-medium cursor-pointer transition-colors ${
-                          diffMode === 'split'
-                            ? 'bg-white/[0.08] text-slate-100'
-                            : 'text-slate-400 hover:text-slate-200'
+                        onClick={() => setIsWordWrap(!isWordWrap)}
+                        className={`p-1.5 rounded-md border transition-colors cursor-pointer ${
+                          isWordWrap
+                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                            : 'bg-[#12151f] border-[#1e2332] text-slate-400 hover:text-slate-200'
                         }`}
+                        title={
+                          isWordWrap
+                            ? 'Đang bật tự động xuống dòng (Bấm để giữ nguyên dòng code)'
+                            : 'Đang giữ nguyên dòng code (Bấm để bật tự động xuống dòng)'
+                        }
                       >
-                        Chia đôi
+                        <WrapText className="w-3.5 h-3.5" />
                       </button>
+
+                      {/* Diff Mode Toggle: Unified vs Split */}
+                      <div className="flex items-center bg-[#12151f] p-0.5 rounded-md border border-[#1e2332]">
+                        <button
+                          type="button"
+                          onClick={() => setDiffMode('unified')}
+                          className={`px-2 py-1 text-xs rounded font-medium cursor-pointer transition-colors ${
+                            diffMode === 'unified'
+                              ? 'bg-white/[0.08] text-slate-100 font-semibold shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                          title="Xem gộp dòng (Unified)"
+                        >
+                          Gộp dòng
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDiffMode('split')}
+                          className={`px-2 py-1 text-xs rounded font-medium cursor-pointer transition-colors ${
+                            diffMode === 'split'
+                              ? 'bg-white/[0.08] text-slate-100 font-semibold shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                          title="Xem chia đôi (Side-by-side)"
+                        >
+                          Chia đôi
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-auto p-4 font-mono text-xs select-text">
-                    {diffResult?.hunks.map((hunk, hIdx) => (
-                      <div key={hIdx} className="mb-4 border border-[#1e2332] rounded-md overflow-hidden">
-                        <div className="bg-[#12151f] px-3 py-1 text-slate-500 text-[11px] border-b border-[#1e2332]">
-                          {hunk.header}
-                        </div>
-                        {diffMode === 'unified' ? (
-                          <div className="divide-y divide-[#1E293B]/20">
-                            {hunk.lines.map((line, lIdx) => (
-                              <div
-                                key={lIdx}
-                                className={`flex items-start px-2 py-0.5 ${
-                                  line.type === 'Added'
-                                    ? 'bg-emerald-950/40 text-emerald-300'
-                                    : line.type === 'Deleted'
-                                    ? 'bg-rose-950/40 text-rose-300'
-                                    : 'text-slate-400'
-                                }`}
-                              >
-                                <span className="w-8 text-right pr-2 text-slate-600 select-none text-[10px]">
-                                  {line.oldLineNumber || ''}
-                                </span>
-                                <span className="w-8 text-right pr-3 text-slate-600 select-none text-[10px]">
-                                  {line.newLineNumber || ''}
-                                </span>
-                                <span className="w-4 select-none">
-                                  {line.type === 'Added' ? '+' : line.type === 'Deleted' ? '-' : ' '}
-                                </span>
-                                <span className="flex-1 whitespace-pre-wrap break-all">
-                                  {line.content}
-                                </span>
+                  {/* Diff Viewer Content Area */}
+                  {loadingDiff ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
+                      <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
+                      <span className="text-xs">Đang tải diff...</span>
+                    </div>
+                  ) : diffResult?.isBinary ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center gap-3">
+                      <FileCode className="w-12 h-12 text-slate-600" />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-300">Tệp nhị phân (Binary File)</p>
+                        <p className="text-xs text-slate-500 mt-1">Không thể hiển thị so sánh dạng văn bản cho tệp này.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFileInEditor(selectedFile.path)}
+                        className="px-3 py-1.5 rounded-md bg-[#161a26] border border-[#22283a] text-xs text-slate-200 hover:bg-[#1e2332] flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Mở trong trình chỉnh sửa</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex-1 overflow-auto p-3 font-mono text-xs select-text">
+                      {diffResult?.hunks && diffResult.hunks.length > 0 ? (
+                        diffResult.hunks.map((hunk, hIdx) => (
+                          <div
+                            key={hIdx}
+                            className="mb-4 border border-[#1e2332] rounded-lg overflow-hidden bg-[#090b10] shadow-sm"
+                          >
+                            <div className="bg-[#12151f] px-3 py-1.5 text-slate-400 text-[11px] border-b border-[#1e2332] flex items-center justify-between font-mono select-none">
+                              <span className="text-cyan-400 font-semibold font-mono">
+                                {viewFullFile
+                                  ? `Toàn bộ tệp (${hunk.lines.length} dòng)`
+                                  : hunk.header}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {hunk.oldLines > 0 && hunk.newLines > 0
+                                  ? `Dòng cũ: ${hunk.oldStart}..${hunk.oldStart + Math.max(hunk.oldLines - 1, 0)} → Dòng mới: ${hunk.newStart}..${hunk.newStart + Math.max(hunk.newLines - 1, 0)}`
+                                  : ''}
+                              </span>
+                            </div>
+
+                            {diffMode === 'unified' ? (
+                              <div className="overflow-x-auto min-w-full">
+                                <div className="divide-y divide-[#1e2332]/20 min-w-full">
+                                  {hunk.lines.map((line, lIdx) => (
+                                    <div
+                                      key={lIdx}
+                                      className={`flex items-stretch text-xs leading-5 hover:bg-white/[0.03] transition-colors border-l-2 ${
+                                        line.type === 'Added'
+                                          ? 'bg-emerald-500/10 text-emerald-200 border-emerald-500'
+                                          : line.type === 'Deleted'
+                                          ? 'bg-rose-500/10 text-rose-200 border-rose-500'
+                                          : 'border-transparent text-slate-300'
+                                      }`}
+                                    >
+                                      <span className="w-10 text-right pr-2 select-none text-[11px] text-slate-500 font-mono shrink-0 py-0.5 bg-[#0e1017]/60 border-r border-[#1e2332]">
+                                        {line.oldLineNumber || ''}
+                                      </span>
+                                      <span className="w-10 text-right pr-2 select-none text-[11px] text-slate-500 font-mono shrink-0 py-0.5 bg-[#0e1017]/60 border-r border-[#1e2332]">
+                                        {line.newLineNumber || ''}
+                                      </span>
+                                      <span
+                                        className={`w-6 text-center select-none font-bold shrink-0 py-0.5 font-mono ${
+                                          line.type === 'Added'
+                                            ? 'text-emerald-400'
+                                            : line.type === 'Deleted'
+                                            ? 'text-rose-400'
+                                            : 'text-transparent'
+                                        }`}
+                                      >
+                                        {line.type === 'Added' ? '+' : line.type === 'Deleted' ? '-' : ' '}
+                                      </span>
+                                      <span
+                                        className={`flex-1 pl-2 pr-4 py-0.5 font-mono ${
+                                          isWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+                                        }`}
+                                      >
+                                        {line.content || ' '}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 divide-x divide-[#1E293B]">
-                            <div className="divide-y divide-[#1E293B]/20">
-                              {hunk.lines
-                                .filter((l) => l.type !== 'Added')
-                                .map((line, lIdx) => (
-                                  <div
-                                    key={lIdx}
-                                    className={`flex items-start px-2 py-0.5 ${
-                                      line.type === 'Deleted'
-                                        ? 'bg-rose-950/40 text-rose-300'
-                                        : 'text-slate-400'
-                                    }`}
-                                  >
-                                    <span className="w-8 text-right pr-2 text-slate-600 select-none text-[10px]">
-                                      {line.oldLineNumber || ''}
-                                    </span>
-                                    <span className="flex-1 whitespace-pre-wrap break-all">
-                                      {line.content}
-                                    </span>
+                            ) : (
+                              <div className="overflow-x-auto min-w-full">
+                                <div className="grid grid-cols-2 divide-x divide-[#1e2332] min-w-[700px]">
+                                  {/* Left: Deletions & Context */}
+                                  <div className="divide-y divide-[#1e2332]/20">
+                                    {hunk.lines
+                                      .filter((l) => l.type !== 'Added')
+                                      .map((line, lIdx) => (
+                                        <div
+                                          key={lIdx}
+                                          className={`flex items-stretch text-xs leading-5 hover:bg-white/[0.03] transition-colors border-l-2 ${
+                                            line.type === 'Deleted'
+                                              ? 'bg-rose-500/10 text-rose-200 border-rose-500'
+                                              : 'border-transparent text-slate-400'
+                                          }`}
+                                        >
+                                          <span className="w-10 text-right pr-2 select-none text-[11px] text-slate-500 font-mono shrink-0 py-0.5 bg-[#0e1017]/60 border-r border-[#1e2332]">
+                                            {line.oldLineNumber || ''}
+                                          </span>
+                                          <span
+                                            className={`w-5 text-center select-none font-bold shrink-0 py-0.5 font-mono ${
+                                              line.type === 'Deleted' ? 'text-rose-400' : 'text-transparent'
+                                            }`}
+                                          >
+                                            {line.type === 'Deleted' ? '-' : ' '}
+                                          </span>
+                                          <span
+                                            className={`flex-1 pl-2 pr-3 py-0.5 font-mono ${
+                                              isWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+                                            }`}
+                                          >
+                                            {line.content || ' '}
+                                          </span>
+                                        </div>
+                                      ))}
                                   </div>
-                                ))}
-                            </div>
-                            <div className="divide-y divide-[#1E293B]/20">
-                              {hunk.lines
-                                .filter((l) => l.type !== 'Deleted')
-                                .map((line, lIdx) => (
-                                  <div
-                                    key={lIdx}
-                                    className={`flex items-start px-2 py-0.5 ${
-                                      line.type === 'Added'
-                                        ? 'bg-emerald-950/40 text-emerald-300'
-                                        : 'text-slate-400'
-                                    }`}
-                                  >
-                                    <span className="w-8 text-right pr-2 text-slate-600 select-none text-[10px]">
-                                      {line.newLineNumber || ''}
-                                    </span>
-                                    <span className="flex-1 whitespace-pre-wrap break-all">
-                                      {line.content}
-                                    </span>
+                                  {/* Right: Additions & Context */}
+                                  <div className="divide-y divide-[#1e2332]/20">
+                                    {hunk.lines
+                                      .filter((l) => l.type !== 'Deleted')
+                                      .map((line, lIdx) => (
+                                        <div
+                                          key={lIdx}
+                                          className={`flex items-stretch text-xs leading-5 hover:bg-white/[0.03] transition-colors border-l-2 ${
+                                            line.type === 'Added'
+                                              ? 'bg-emerald-500/10 text-emerald-200 border-emerald-500'
+                                              : 'border-transparent text-slate-400'
+                                          }`}
+                                        >
+                                          <span className="w-10 text-right pr-2 select-none text-[11px] text-slate-500 font-mono shrink-0 py-0.5 bg-[#0e1017]/60 border-r border-[#1e2332]">
+                                            {line.newLineNumber || ''}
+                                          </span>
+                                          <span
+                                            className={`w-5 text-center select-none font-bold shrink-0 py-0.5 font-mono ${
+                                              line.type === 'Added' ? 'text-emerald-400' : 'text-transparent'
+                                            }`}
+                                          >
+                                            {line.type === 'Added' ? '+' : ' '}
+                                          </span>
+                                          <span
+                                            className={`flex-1 pl-2 pr-3 py-0.5 font-mono ${
+                                              isWordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+                                            }`}
+                                          >
+                                            {line.content || ' '}
+                                          </span>
+                                        </div>
+                                      ))}
                                   </div>
-                                ))}
-                            </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                    {(!diffResult || diffResult.hunks.length === 0) && (
-                      <div className="p-8 text-center text-slate-500 italic">
-                        Không có diff nào để hiển thị cho tệp này.
-                      </div>
-                    )}
-                  </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center text-slate-500 italic">
+                          Không có sự khác biệt nào để hiển thị cho tệp này.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center">
@@ -2348,8 +2865,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    setCicdResult(null);
-                    setIsCicdModalOpen(true);
+                    openCicdModalForRepo('', undefined, selectedAccountId, '');
                   }}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors shrink-0"
                   title="Tự động thiết lập CI/CD triển khai ứng dụng lên server qua GitHub Actions"
@@ -2480,8 +2996,17 @@ export const GitPage: React.FC<GitPageProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            // Find matching local project or directory
+                            const matchingProject = projects.find(
+                              (p) =>
+                                p.name.toLowerCase() === repo.name.toLowerCase() ||
+                                p.path.toLowerCase().replace(/\\/g, '/').endsWith(`/${repo.name.toLowerCase()}`)
+                            );
+                            const isCurrent = activeRepoPath && activeRepoPath.toLowerCase().replace(/\\/g, '/').endsWith(`/${repo.name.toLowerCase()}`);
+                            const localPath = matchingProject ? matchingProject.path : (isCurrent ? activeRepoPath : '');
+
                             openCicdModalForRepo(
-                              activeRepoPath,
+                              localPath,
                               repo.name,
                               selectedAccountId,
                               repo.fullName
@@ -3048,13 +3573,35 @@ export const GitPage: React.FC<GitPageProps> = ({
 
               <div className="flex flex-col gap-1">
                 <label className="text-slate-400 font-medium">Thư mục đích trên Windows</label>
-                <input
-                  type="text"
-                  value={cloneDestPath}
-                  onChange={(e) => setCloneDestPath(e.target.value)}
-                  placeholder="D:\Projects\repo-name"
-                  className="bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-blue-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={cloneDestPath}
+                    onChange={(e) => setCloneDestPath(e.target.value)}
+                    placeholder="D:\Projects\repo-name"
+                    className="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-blue-500 selectable"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBrowseFolderForClone}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0"
+                    title="Duyệt và chọn thư mục từ máy tính (Hộp thoại Windows)"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    <span>Duyệt...</span>
+                  </button>
+                  {cloneDestPath.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenInExplorer(cloneDestPath)}
+                      className="flex items-center gap-1.5 px-2.5 py-2 bg-[#1E293B]/70 hover:bg-[#1E293B] text-slate-300 border border-[#334155] rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0"
+                      title="Mở thư mục này trong Windows File Explorer"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Explorer</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col gap-1">
@@ -3106,9 +3653,15 @@ export const GitPage: React.FC<GitPageProps> = ({
                       Tự Động Hóa Deploy Server
                     </span>
                   </h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] text-slate-400">
-                      Kho mục tiêu: <span className="font-mono text-cyan-300 font-semibold">{cicdTargetRepoName || cicdRemoteFullName || activeRepoPath || 'Kho hiện tại'}</span>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap">
+                      <span>Kho mục tiêu:</span>
+                      <span className="font-mono text-cyan-300 font-semibold">{cicdTargetRepoName || cicdRemoteFullName || activeRepoPath || 'Kho hiện tại'}</span>
+                      {cicdTargetRepoPath ? (
+                        <span className="text-[10px] text-slate-500 font-mono">({cicdTargetRepoPath})</span>
+                      ) : cicdRemoteFullName ? (
+                        <span className="text-[10px] text-purple-400 font-mono">({cicdRemoteFullName} • Cloud)</span>
+                      ) : null}
                     </span>
                     <button
                       type="button"
@@ -3232,7 +3785,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                       setCicdResult(null);
                       setIsCicdModalOpen(false);
                     }}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 text-xs font-bold hover:scale-105 transition-all cursor-pointer shadow-glow-emerald"
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors cursor-pointer"
                   >
                     Hoàn Tất
                   </button>
@@ -3602,7 +4155,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                     type="button"
                     onClick={handleSetupCicd}
                     disabled={isSettingUpCicd || !cicdServerHost.trim()}
-                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold text-xs shadow-glow-emerald cursor-pointer hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSettingUpCicd ? (
                       <>
@@ -3611,8 +4164,8 @@ export const GitPage: React.FC<GitPageProps> = ({
                       </>
                     ) : (
                       <>
-                        <Zap className="w-3.5 h-3.5 fill-current" />
-                        <span>🚀 Tạo &amp; Cài Đặt CI/CD Ngay</span>
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Tạo &amp; Cài Đặt CI/CD</span>
                       </>
                     )}
                   </button>
@@ -3635,13 +4188,35 @@ export const GitPage: React.FC<GitPageProps> = ({
             <div className="flex flex-col gap-3 text-xs">
               <div className="flex flex-col gap-1">
                 <label className="text-slate-400 font-medium">Đường dẫn thư mục dự án:</label>
-                <input
-                  type="text"
-                  value={initRepoPath}
-                  onChange={(e) => setInitRepoPath(e.target.value)}
-                  placeholder="D:\Projects\my-app"
-                  className="bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500 selectable"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={initRepoPath}
+                    onChange={(e) => setInitRepoPath(e.target.value)}
+                    placeholder="D:\Projects\my-app"
+                    className="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500 selectable"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBrowseFolderForInit}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0"
+                    title="Duyệt và chọn thư mục từ máy tính (Hộp thoại Windows)"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    <span>Duyệt...</span>
+                  </button>
+                  {initRepoPath.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenInExplorer(initRepoPath)}
+                      className="flex items-center gap-1.5 px-2.5 py-2 bg-[#1E293B]/70 hover:bg-[#1E293B] text-slate-300 border border-[#334155] rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0"
+                      title="Mở thư mục này trong Windows File Explorer"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Explorer</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <p className="text-[11px] text-slate-400">
@@ -3746,13 +4321,35 @@ export const GitPage: React.FC<GitPageProps> = ({
                 </div>
               )}
 
-              <input
-                type="text"
-                value={pushLocalPath}
-                onChange={(e) => setPushLocalPath(e.target.value)}
-                placeholder="D:\du-an-cua-ban"
-                className="bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500 selectable shadow-inner"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={pushLocalPath}
+                  onChange={(e) => setPushLocalPath(e.target.value)}
+                  placeholder="D:\du-an-cua-ban"
+                  className="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500 selectable shadow-inner"
+                />
+                <button
+                  type="button"
+                  onClick={handleBrowseFolderForPush}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-medium transition-colors cursor-pointer shrink-0"
+                  title="Duyệt và chọn thư mục từ máy tính (Hộp thoại Windows)"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Duyệt...</span>
+                </button>
+                {pushLocalPath.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenInExplorer(pushLocalPath)}
+                    className="flex items-center gap-1.5 px-3 py-2.5 bg-[#1E293B]/70 hover:bg-[#1E293B] text-slate-300 border border-[#334155] rounded-xl text-xs font-medium transition-colors cursor-pointer shrink-0"
+                    title="Mở thư mục này trong Windows File Explorer"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Explorer</span>
+                  </button>
+                )}
+              </div>
               <span className="text-[11px] text-slate-500">
                 💡 DevDock sẽ tự động chạy <code className="text-slate-400 font-mono">git init</code> nếu thư mục này chưa có kho Git.
               </span>
@@ -3937,13 +4534,35 @@ export const GitPage: React.FC<GitPageProps> = ({
             <div className="flex flex-col gap-3 text-xs">
               <div className="flex flex-col gap-1.5">
                 <label className="text-slate-300 font-medium">Nhập đường dẫn thư mục dự án trên máy tính:</label>
-                <input
-                  type="text"
-                  value={customFolderPath}
-                  onChange={(e) => setCustomFolderPath(e.target.value)}
-                  placeholder="D:\ToolTienich hoặc D:\Projects\my-app"
-                  className="bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-blue-500 selectable"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customFolderPath}
+                    onChange={(e) => setCustomFolderPath(e.target.value)}
+                    placeholder="D:\ToolTienich hoặc D:\Projects\my-app"
+                    className="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-blue-500 selectable"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBrowseFolderForCustom}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0"
+                    title="Duyệt và chọn thư mục từ máy tính (Hộp thoại Windows)"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    <span>Duyệt...</span>
+                  </button>
+                  {customFolderPath.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenInExplorer(customFolderPath)}
+                      className="flex items-center gap-1.5 px-2.5 py-2 bg-[#1E293B]/70 hover:bg-[#1E293B] text-slate-300 border border-[#334155] rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0"
+                      title="Mở thư mục này trong Windows File Explorer"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Explorer</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {projects.length > 0 && (

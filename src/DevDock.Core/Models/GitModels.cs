@@ -94,6 +94,7 @@ public class GitCommitRequest
     public string Message { get; set; } = string.Empty;
     public string? AuthorName { get; set; }
     public string? AuthorEmail { get; set; }
+    public bool AutoStageAll { get; set; }
 }
 
 public class RemoteRepoItem

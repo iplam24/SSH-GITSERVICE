@@ -7,12 +7,13 @@ import {
   Server,
   Terminal,
   Wrench,
+  Sliders,
   Settings,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 
-export type NavRoute = 'home' | 'projects' | 'git' | 'ai' | 'ssh' | 'terminal' | 'tools' | 'settings';
+export type NavRoute = 'home' | 'projects' | 'git' | 'ai' | 'ssh' | 'terminal' | 'tools' | 'devops' | 'settings';
 
 interface SidebarProps {
   currentRoute: NavRoute;
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { route: 'ssh' as NavRoute, label: 'Kết nối SSH', icon: Server, shortcut: 'Ctrl+Shift+S' },
     { route: 'terminal' as NavRoute, label: 'Terminal', icon: Terminal, shortcut: 'Ctrl+Shift+T' },
     { route: 'tools' as NavRoute, label: 'Tiện ích Dev', icon: Wrench, shortcut: 'Ctrl+5' },
+    { route: 'devops' as NavRoute, label: 'Windows DevOps', icon: Sliders, shortcut: 'Ctrl+6' },
   ];
 
   const systemNav = [

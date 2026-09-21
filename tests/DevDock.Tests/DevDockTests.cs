@@ -104,6 +104,37 @@ index 1234567..89abcdef 100644
         var result = GitDiffParser.Parse(rawDiff, "image.png");
         Assert.True(result.IsBinary);
     }
+
+    [Fact]
+    public void GitDiffParser_FullFileDiff_ParsesContinuousHunk()
+    {
+        var rawDiff = @"diff --git a/Program.cs b/Program.cs
+index 1111111..2222222 100644
+--- a/Program.cs
++++ b/Program.cs
+@@ -1,5 +1,6 @@
+ using System;
+-Console.WriteLine(""old"");
++Console.WriteLine(""new"");
++Console.WriteLine(""extra"");
+ return 0;";
+
+        var result = GitDiffParser.Parse(rawDiff, "Program.cs");
+        Assert.Single(result.Hunks);
+        Assert.Equal(1, result.Hunks[0].OldStart);
+        Assert.Equal(1, result.Hunks[0].NewStart);
+        Assert.Equal(5, result.Hunks[0].Lines.Count);
+    }
+
+    [Fact]
+    public void GitDiffParser_SyntheticAddedDiff_CreatesAllAddedLines()
+    {
+        var content = "line1\nline2\nline3";
+        var result = GitDiffParser.CreateSyntheticAddedDiff(content, "newfile.txt");
+        Assert.Single(result.Hunks);
+        Assert.Equal(3, result.Hunks[0].Lines.Count);
+        Assert.All(result.Hunks[0].Lines, l => Assert.Equal(DiffLineType.Added, l.Type));
+    }
 }
 
 public class ProjectServiceTests
@@ -692,6 +723,99 @@ public class GitGlobalConfigTests
         {
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
+    }
+
+    [Fact]
+    public async Task GitService_InspectRepositoryTech_DetectsPythonFastApiAndPm2Project()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "test_repo_py_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "main.py"), "from app.bot import run\nif __name__ == '__main__': run()");
+            var ecosystemJs = """
+            module.exports = {
+              apps: [
+                {
+                  name: 'bot',
+                  script: './venv/bin/python',
+                  args: '-u main.py'
+                },
+                {
+                  name: 'web',
+                  script: './venv/bin/python',
+                  args: '-m uvicorn web.main:app --host 0.0.0.0 --port 8080'
+                }
+              ]
+            };
+            """;
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "ecosystem.config.js"), ecosystemJs);
+
+            var gitService = new GitService();
+            var inspectResult = await gitService.InspectRepositoryTechAsync(new InspectRepoRequest { RepoPath = tempDir });
+
+            Assert.True(inspectResult.Success);
+            Assert.Equal("Python", inspectResult.TechStack);
+            Assert.Contains("FastAPI", inspectResult.Framework);
+            Assert.Equal(8080, inspectResult.AppPort);
+            Assert.Equal("SSH_PM2", inspectResult.SuggestedDeployType);
+            Assert.Contains("pm2 start ecosystem.config.js", inspectResult.StartCommand);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task GitService_InspectRepositoryTech_ResolvesMatchingSiblingDirectoryWhenRemoteRepoGiven()
+    {
+        var rootDir = Path.Combine(Path.GetTempPath(), "test_workspace_" + Guid.NewGuid().ToString("N"));
+        var localDotnet = Path.Combine(rootDir, "ToolTienich");
+        var localPython = Path.Combine(rootDir, "tele-locketvip");
+        Directory.CreateDirectory(localDotnet);
+        Directory.CreateDirectory(localPython);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(localDotnet, "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(localPython, "main.py"), "print('hello')");
+
+            var gitService = new GitService();
+            // Client passed RepoPath = localDotnet, but RemoteRepoFullName = "iplam24/tele-locketvip"
+            var inspectResult = await gitService.InspectRepositoryTechAsync(new InspectRepoRequest
+            {
+                RepoPath = localDotnet,
+                RemoteRepoFullName = "iplam24/tele-locketvip"
+            });
+
+            Assert.True(inspectResult.Success);
+            // It should NOT detect DotNet! It should match localPython and detect Python!
+            Assert.Equal("Python", inspectResult.TechStack);
+            Assert.NotEqual("DotNet", inspectResult.TechStack);
+        }
+        finally
+        {
+            if (Directory.Exists(rootDir)) Directory.Delete(rootDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task GitService_InspectRepositoryTech_ActualTeleLocketVipDirectory()
+    {
+        if (!Directory.Exists(@"D:\tele-locketvip")) return;
+
+        var gitService = new GitService();
+        var inspectResult = await gitService.InspectRepositoryTechAsync(new InspectRepoRequest
+        {
+            RepoPath = @"D:\ToolTienich",
+            RemoteRepoFullName = "iplam24/tele-locketvip"
+        });
+
+        Assert.True(inspectResult.Success);
+        Assert.Equal("Python", inspectResult.TechStack);
+        Assert.Contains("FastAPI", inspectResult.Framework);
+        Assert.Equal(8080, inspectResult.AppPort);
+        Assert.Equal("SSH_PM2", inspectResult.SuggestedDeployType);
     }
 
     [Fact]

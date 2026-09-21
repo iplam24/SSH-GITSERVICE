@@ -20,7 +20,7 @@ public interface IGitService
     Task CheckoutBranchAsync(string repoPath, string branchName);
     Task CreateBranchAsync(string repoPath, string branchName, bool checkout = true);
     Task<List<GitCommitItem>> GetRecentCommitsAsync(string repoPath, int count = 25);
-    Task<GitDiffResult> GetFileDiffAsync(string repoPath, string filePath, bool staged = false);
+    Task<GitDiffResult> GetFileDiffAsync(string repoPath, string filePath, bool staged = false, int contextLines = 3);
     Task<string> StashAsync(string repoPath, string? message = null);
     Task<string> StashPopAsync(string repoPath);
     Task<List<GitStashItem>> GetStashesAsync(string repoPath);

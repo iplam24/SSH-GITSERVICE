@@ -150,13 +150,50 @@ public class ProjectService : IProjectService
         };
 
         // Detect project type and pre-fill commands
-        var hasSlnOrCsproj = Directory.GetFiles(path, "*.sln*").Length > 0 || Directory.GetFiles(path, "*.csproj").Length > 0;
+        var pyFiles = Directory.GetFiles(path, "*.py");
+        var hasEcosystem = File.Exists(Path.Combine(path, "ecosystem.config.js"));
+        string ecosystemContent = "";
+        if (hasEcosystem)
+        {
+            try { ecosystemContent = File.ReadAllText(Path.Combine(path, "ecosystem.config.js")); } catch { }
+        }
+
+        var hasPyManifest = File.Exists(Path.Combine(path, "pyproject.toml")) ||
+                            File.Exists(Path.Combine(path, "requirements.txt")) ||
+                            File.Exists(Path.Combine(path, "requirements-dev.txt")) ||
+                            File.Exists(Path.Combine(path, "Pipfile")) ||
+                            File.Exists(Path.Combine(path, "setup.py"));
+
+        var hasPython = hasPyManifest || pyFiles.Length > 0 ||
+                        (hasEcosystem && (ecosystemContent.Contains("python", StringComparison.OrdinalIgnoreCase) || ecosystemContent.Contains(".py", StringComparison.OrdinalIgnoreCase))) ||
+                        (Directory.Exists(Path.Combine(path, "app")) && Directory.GetFiles(Path.Combine(path, "app"), "*.py").Length > 0);
+
         var hasPackageJson = File.Exists(Path.Combine(path, "package.json"));
+        var hasSlnOrCsproj = Directory.GetFiles(path, "*.sln*").Length > 0 || Directory.GetFiles(path, "*.csproj").Length > 0;
         var hasCargo = File.Exists(Path.Combine(path, "Cargo.toml"));
         var hasGoMod = File.Exists(Path.Combine(path, "go.mod"));
-        var hasPython = File.Exists(Path.Combine(path, "pyproject.toml")) || File.Exists(Path.Combine(path, "requirements.txt"));
 
-        if (hasSlnOrCsproj)
+        if (hasPython)
+        {
+            project.Icon = "python";
+            project.Tags.Add("Python");
+
+            if (hasEcosystem && (ecosystemContent.Contains("python", StringComparison.OrdinalIgnoreCase) || ecosystemContent.Contains(".py", StringComparison.OrdinalIgnoreCase)))
+            {
+                project.Tags.Add("PM2");
+                project.Commands["dev"] = "pm2 start ecosystem.config.js";
+                project.Commands["build"] = File.Exists(Path.Combine(path, "requirements.txt")) ? "pip install -r requirements.txt" : "pip install -r requirements.txt || true";
+                project.Commands["test"] = "pytest";
+            }
+            else
+            {
+                var mainFile = File.Exists(Path.Combine(path, "main.py")) ? "main.py" : (File.Exists(Path.Combine(path, "app.py")) ? "app.py" : (pyFiles.Length > 0 ? Path.GetFileName(pyFiles[0]) : "main.py"));
+                project.Commands["dev"] = $"python {mainFile}";
+                project.Commands["build"] = File.Exists(Path.Combine(path, "requirements.txt")) ? "pip install -r requirements.txt" : "pip install -r requirements.txt || true";
+                project.Commands["test"] = "pytest";
+            }
+        }
+        else if (hasSlnOrCsproj)
         {
             project.Icon = "dotnet";
             project.Tags.Add(".NET");
@@ -202,13 +239,6 @@ public class ProjectService : IProjectService
             project.Commands["dev"] = "go run .";
             project.Commands["build"] = "go build";
             project.Commands["test"] = "go test ./...";
-        }
-        else if (hasPython)
-        {
-            project.Icon = "python";
-            project.Tags.Add("Python");
-            project.Commands["dev"] = "python main.py";
-            project.Commands["test"] = "pytest";
         }
         else
         {

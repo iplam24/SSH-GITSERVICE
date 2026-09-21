@@ -25,8 +25,13 @@ public class CommandService : ICommandService
         items.Add(new CommandPaletteItem { Id = "nav:ssh", Title = "Go to SSH Manager", Category = "Navigation", ActionType = "navigate", Shortcut = "Ctrl+Shift+S", Payload = new() { ["route"] = "/ssh" } });
         items.Add(new CommandPaletteItem { Id = "nav:terminal", Title = "Go to Terminal", Category = "Navigation", ActionType = "navigate", Shortcut = "Ctrl+Shift+T", Payload = new() { ["route"] = "/terminal" } });
         items.Add(new CommandPaletteItem { Id = "nav:tools", Title = "Go to Developer Tools", Category = "Navigation", ActionType = "navigate", Payload = new() { ["route"] = "/tools" } });
+        items.Add(new CommandPaletteItem { Id = "nav:devops", Title = "Go to Windows DevOps (Ports, Hosts, Env)", Category = "Navigation", ActionType = "navigate", Shortcut = "Ctrl+6", Payload = new() { ["route"] = "/devops" } });
         items.Add(new CommandPaletteItem { Id = "nav:settings", Title = "Go to Settings", Category = "Navigation", ActionType = "navigate", Shortcut = "Ctrl+,", Payload = new() { ["route"] = "/settings" } });
         items.Add(new CommandPaletteItem { Id = "setup:wizard", Title = "System: Chạy lại Trình thiết lập hệ thống (Setup Wizard)", Subtitle = "Cấu hình PATH, Context Menu, Shell và Chẩn đoán phần cứng", Category = "System", ActionType = "setup_wizard" });
+        items.Add(new CommandPaletteItem { Id = "devops:ports", Title = "DevOps: Kiểm tra Cổng mạng & Dừng tiến trình (Port Inspector)", Subtitle = "Xem danh sách port đang listening và kill tiến trình chiếm cổng", Category = "DevOps", ActionType = "navigate", Payload = new() { ["route"] = "/devops", ["tab"] = "ports" } });
+        items.Add(new CommandPaletteItem { Id = "devops:hosts", Title = "DevOps: Quản trị file Windows Hosts (Domain Mapping)", Subtitle = "Xem, bật/tắt domain local mapping trong C:\\Windows\\System32\\drivers\\etc\\hosts", Category = "DevOps", ActionType = "navigate", Payload = new() { ["route"] = "/devops", ["tab"] = "hosts" } });
+        items.Add(new CommandPaletteItem { Id = "devops:env", Title = "DevOps: Biến môi trường & Dead PATH Inspector", Subtitle = "Duyệt User/System variables và phát hiện đường dẫn PATH chết", Category = "DevOps", ActionType = "navigate", Payload = new() { ["route"] = "/devops", ["tab"] = "env" } });
+        items.Add(new CommandPaletteItem { Id = "devops:flushdns", Title = "DevOps: Flush DNS Cache", Subtitle = "Xóa bộ nhớ đệm phân giải tên miền Windows", Category = "DevOps", ActionType = "devops_flush_dns" });
 
         // Terminal Actions
         items.Add(new CommandPaletteItem { Id = "term:new:pwsh", Title = "Terminal: New PowerShell Tab", Category = "Terminal", ActionType = "terminal", Payload = new() { ["shell"] = "PowerShell" } });

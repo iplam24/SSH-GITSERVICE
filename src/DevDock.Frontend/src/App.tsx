@@ -11,6 +11,7 @@ import { AiPage } from './pages/AiPage';
 import { SshPage } from './pages/SshPage';
 import { TerminalPage } from './pages/TerminalPage';
 import { ToolsPage, ToolType } from './pages/ToolsPage';
+import { DevOpsPage } from './pages/DevOpsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SetupPage } from './pages/SetupPage';
 
@@ -59,6 +60,7 @@ export const App: React.FC = () => {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [commands, setCommands] = useState<CommandPaletteItem[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('json');
+  const [selectedDevopsTab, setSelectedDevopsTab] = useState<'ports' | 'hosts' | 'env'>('ports');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [pendingSshProfileId, setPendingSshProfileId] = useState<string | null>(null);
   const [pendingRunCommand, setPendingRunCommand] = useState<string | null>(null);
@@ -203,13 +205,14 @@ export const App: React.FC = () => {
         e.preventDefault();
         setCurrentRoute('settings');
       }
-      // Number shortcuts Ctrl + 1, 2, 3, 4, 5
+      // Number shortcuts Ctrl + 1, 2, 3, 4, 5, 6
       else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
         if (e.key === '1') { e.preventDefault(); setCurrentRoute('home'); }
         else if (e.key === '2') { e.preventDefault(); setCurrentRoute('projects'); }
         else if (e.key === '3') { e.preventDefault(); setCurrentRoute('git'); }
         else if (e.key === '4') { e.preventDefault(); setCurrentRoute('ai'); }
         else if (e.key === '5') { e.preventDefault(); setCurrentRoute('tools'); }
+        else if (e.key === '6') { e.preventDefault(); setCurrentRoute('devops'); }
       }
     };
 
@@ -225,6 +228,13 @@ export const App: React.FC = () => {
       if (cmd.payload.tool) {
         setSelectedTool(cmd.payload.tool as ToolType);
       }
+      if (cmd.payload.tab && (cmd.payload.tab === 'ports' || cmd.payload.tab === 'hosts' || cmd.payload.tab === 'env')) {
+        setSelectedDevopsTab(cmd.payload.tab as any);
+      }
+    } else if (cmd.actionType === 'devops_flush_dns') {
+      api.flushDns()
+        .then(() => showToast('Đã Flush DNS thành công (DnsFlushResolverCache)', 'success'))
+        .catch((err) => showToast(err.message || 'Lỗi Flush DNS', 'error'));
     } else if (cmd.actionType === 'project') {
       const p = projects.find((x) => x.id === cmd.payload?.projectId);
       if (p) {
@@ -388,6 +398,14 @@ export const App: React.FC = () => {
 
           {currentRoute === 'tools' && (
             <ToolsPage initialTool={selectedTool} onShowToast={showToast} />
+          )}
+
+          {currentRoute === 'devops' && (
+            <DevOpsPage
+              initialTab={selectedDevopsTab}
+              onShowToast={showToast}
+              onRunCommandInTerminal={handleRunCommandInTerminal}
+            />
           )}
 
           {currentRoute === 'settings' && (

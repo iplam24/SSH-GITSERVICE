@@ -28,9 +28,11 @@ import {
   FileCode,
   HardDrive,
   Check,
+  Sliders,
 } from 'lucide-react';
 import { SshProfile, SshAuthType, SshConnectionTestResult, RemoteFileItem, RemoteFileContent } from '../types';
 import { api } from '../services/api';
+import { SshControlCenter } from './SshControlCenter';
 
 interface SshPageProps {
   profiles: SshProfile[];
@@ -45,8 +47,9 @@ export const SshPage: React.FC<SshPageProps> = ({
   onConnectTerminal,
   onShowToast,
 }) => {
-  // Navigation View: 'profiles' (Server Cards) or 'sftp' (SFTP Remote File Explorer)
-  const [activeView, setActiveView] = useState<'profiles' | 'sftp'>('profiles');
+  // Navigation View: 'profiles' (Server Cards), 'manage' (Remote Control Center), or 'sftp' (SFTP Remote File Explorer)
+  const [activeView, setActiveView] = useState<'profiles' | 'manage' | 'sftp'>('profiles');
+  const [selectedManageProfile, setSelectedManageProfile] = useState<SshProfile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Partial<SshProfile>>({
@@ -174,11 +177,17 @@ export const SshPage: React.FC<SshPageProps> = ({
     }
   };
 
+  // ------------------ SERVER CONTROL CENTER LOGIC ------------------
+  const handleOpenManage = (profile: SshProfile) => {
+    setSelectedManageProfile(profile);
+    setActiveView('manage');
+  };
+
   // ------------------ SFTP LOGIC ------------------
-  const handleOpenSftp = (profile: SshProfile) => {
+  const handleOpenSftp = (profile: SshProfile, initialPath = '/') => {
     setSelectedSftpProfile(profile);
     setActiveView('sftp');
-    loadRemoteDirectory(profile.id, '/');
+    loadRemoteDirectory(profile.id, initialPath);
   };
 
   const loadRemoteDirectory = async (profileId: string, path: string) => {
@@ -370,15 +379,29 @@ export const SshPage: React.FC<SshPageProps> = ({
             <button
               type="button"
               onClick={() => setActiveView('profiles')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeView === 'profiles'
-                  ? 'bg-accent text-slate-950 shadow-glow-accent'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white/[0.08] text-slate-100 font-semibold border border-white/10'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
               }`}
             >
               <Server className="w-3.5 h-3.5" />
               <span>Máy chủ ({profiles.length})</span>
             </button>
+            {selectedManageProfile && (
+              <button
+                type="button"
+                onClick={() => setActiveView('manage')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeView === 'manage'
+                    ? 'bg-white/[0.08] text-slate-100 font-semibold border border-white/10'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 text-blue-400" />
+                <span>Quản Trị ({selectedManageProfile.name})</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -388,10 +411,10 @@ export const SshPage: React.FC<SshPageProps> = ({
                   setActiveView('sftp');
                 }
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeView === 'sftp'
-                  ? 'bg-cyan-500 text-slate-950 shadow-glow-cyan'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white/[0.08] text-slate-100 font-semibold border border-white/10'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
               }`}
             >
               <FolderTree className="w-3.5 h-3.5" />
@@ -403,7 +426,7 @@ export const SshPage: React.FC<SshPageProps> = ({
             <button
               type="button"
               onClick={handleOpenAddModal}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-slate-950 text-xs font-semibold transition-colors shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Thêm Kết Nối</span>
@@ -453,10 +476,10 @@ export const SshPage: React.FC<SshPageProps> = ({
                         </div>
                         <div className="flex flex-col overflow-hidden">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-sm text-slate-200 truncate group-hover:text-accent transition-colors">
+                            <span className="font-semibold text-sm text-slate-200 truncate group-hover:text-blue-400 transition-colors">
                               {p.name}
                             </span>
-                            <div className="w-2 h-2 rounded-full bg-accent shadow-glow-accent" title="Đã cấu hình" />
+                            <div className="w-2 h-2 rounded-full bg-emerald-400" title="Đã cấu hình" />
                           </div>
                           <span className="text-[11px] text-slate-400 font-mono truncate">
                             {p.username}@{p.host}:{p.port}
@@ -484,6 +507,15 @@ export const SshPage: React.FC<SshPageProps> = ({
                         >
                           <Play className="w-3 h-3 fill-accent" />
                           <span>Shell</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenManage(p)}
+                          className="px-2.5 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-xs font-semibold flex items-center gap-1 transition-colors border border-blue-500/30 cursor-pointer shadow-sm"
+                          title="Mở Trung Tâm Quản Trị Máy Chủ (Cổng, Nginx, SSL, Git, Process)"
+                        >
+                          <Sliders className="w-3 h-3 text-blue-400" />
+                          <span>Quản Trị</span>
                         </button>
                         <button
                           type="button"
@@ -533,7 +565,20 @@ export const SshPage: React.FC<SshPageProps> = ({
         </div>
       )}
 
-      {/* ==================== VIEW 2: SFTP REMOTE FILE EXPLORER ==================== */}
+      {/* ==================== VIEW 2: SERVER CONTROL CENTER ==================== */}
+      {activeView === 'manage' && selectedManageProfile && (
+        <SshControlCenter
+          profile={selectedManageProfile}
+          onBack={() => setActiveView('profiles')}
+          onOpenTerminal={onConnectTerminal}
+          onOpenSftp={(prof, path) => {
+            handleOpenSftp(prof, path || '/');
+          }}
+          onShowToast={onShowToast}
+        />
+      )}
+
+      {/* ==================== VIEW 3: SFTP REMOTE FILE EXPLORER ==================== */}
       {activeView === 'sftp' && (
         <div className="flex-1 flex flex-col gap-3.5 overflow-hidden">
           {/* SFTP Top Controls Bar */}
@@ -597,7 +642,7 @@ export const SshPage: React.FC<SshPageProps> = ({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 text-xs font-bold transition-all shadow-glow-cyan cursor-pointer hover:scale-105"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
                 title="Chọn tệp từ máy tính để tải lên máy chủ"
               >
                 <UploadCloud className="w-3.5 h-3.5" />
@@ -697,7 +742,7 @@ export const SshPage: React.FC<SshPageProps> = ({
             }}
             className={`flex-1 rounded-xl bg-[#090E1A] border overflow-hidden flex flex-col relative transition-all ${
               isDraggingOver
-                ? 'border-cyan-400 bg-cyan-950/20 shadow-glow-cyan'
+                ? 'border-blue-500 bg-blue-950/20'
                 : 'border-[#1A2438]'
             }`}
           >
@@ -835,7 +880,7 @@ export const SshPage: React.FC<SshPageProps> = ({
             {/* Bottom Status Bar */}
             <div className="p-2.5 bg-[#0C1220] border-t border-[#1A2438] flex items-center justify-between text-[11px] text-slate-400 font-mono">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-glow-emerald" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 <span>
                   {selectedSftpProfile ? `${selectedSftpProfile.username}@${selectedSftpProfile.host}` : 'Chưa kết nối'}
                 </span>
@@ -999,7 +1044,7 @@ export const SshPage: React.FC<SshPageProps> = ({
               <button
                 type="button"
                 onClick={handleSaveProfile}
-                className="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-slate-950 text-xs font-semibold cursor-pointer shadow-glow-accent"
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium cursor-pointer transition-colors"
               >
                 Lưu Kết Nối SSH
               </button>
@@ -1124,7 +1169,7 @@ export const SshPage: React.FC<SshPageProps> = ({
               <button
                 type="button"
                 onClick={handleCreateDirectory}
-                className="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-bold text-xs cursor-pointer shadow-glow-cyan"
+                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs cursor-pointer transition-colors"
               >
                 Tạo Thư Mục
               </button>

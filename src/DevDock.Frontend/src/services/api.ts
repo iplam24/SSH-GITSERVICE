@@ -7,6 +7,16 @@ import {
   GitDiffResult,
   SshProfile,
   SshConnectionTestResult,
+  SshCommandResult,
+  SshListeningPortItem,
+  SshServerOverview,
+  SshDomainItem,
+  SshNginxSiteItem,
+  SshNginxSaveRequest,
+  SshCertbotCertificateItem,
+  SshGitDeploymentItem,
+  SshProcessItem,
+  SshServerMetadata,
   ShellDescriptor,
   TerminalSessionInfo,
   AppSettings,
@@ -48,6 +58,11 @@ import {
   GitIgnoreInfo,
   SaveGitIgnoreRequest,
   AddToGitIgnoreRequest,
+  PortListeningItem,
+  KillProcessResult,
+  HostEntryItem,
+  SystemEnvVariableItem,
+  DotEnvCompareResult,
 } from '../types';
 
 const API_BASE = window.location.port === '5173' ? 'http://127.0.0.1:38420' : '';
@@ -62,18 +77,27 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
 
+  const rawText = await res.text().catch(() => '');
+  let data: any = null;
+  if (rawText && rawText.trim()) {
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = rawText;
+    }
+  }
+
   if (!res.ok) {
     let errText = '';
-    try {
-      const errJson = await res.json();
-      errText = errJson.message || errJson.error || JSON.stringify(errJson);
-    } catch {
-      errText = await res.text();
+    if (data && typeof data === 'object') {
+      errText = data.message || data.error || data.title || JSON.stringify(data);
+    } else if (typeof data === 'string' && data.trim()) {
+      errText = data.trim();
     }
     throw new Error(errText || `Request failed with status ${res.status}`);
   }
 
-  return res.json();
+  return (data ?? {}) as T;
 }
 
 export const api = {
@@ -94,6 +118,11 @@ export const api = {
     req<void>('/api/projects/open-explorer', { method: 'POST', body: JSON.stringify({ path }) }),
   openEditor: (path: string, editor = 'code') =>
     req<void>('/api/projects/open-editor', { method: 'POST', body: JSON.stringify({ path, editor }) }),
+  browseFolder: (initialPath?: string) =>
+    req<{ folder: string | null; canceled: boolean }>('/api/system/browse-folder', {
+      method: 'POST',
+      body: JSON.stringify({ initialPath }),
+    }),
 
   // Git
   getGitStatus: (repoPath: string) =>
@@ -139,9 +168,9 @@ export const api = {
     }),
   getCommits: (repoPath: string, count = 25) =>
     req<GitCommitItem[]>(`/api/git/commits?repoPath=${encodeURIComponent(repoPath)}&count=${count}`),
-  getFileDiff: (repoPath: string, filePath: string, staged = false) =>
+  getFileDiff: (repoPath: string, filePath: string, staged = false, contextLines = 3) =>
     req<GitDiffResult>(
-      `/api/git/diff?repoPath=${encodeURIComponent(repoPath)}&filePath=${encodeURIComponent(filePath)}&staged=${staged}`
+      `/api/git/diff?repoPath=${encodeURIComponent(repoPath)}&filePath=${encodeURIComponent(filePath)}&staged=${staged}&contextLines=${contextLines}`
     ),
   stash: (repoPath: string, message?: string) =>
     req<{ output: string }>('/api/git/stash', { method: 'POST', body: JSON.stringify({ repoPath, message }) }),
@@ -289,6 +318,97 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Advanced SSH Server Management
+  sshExecCommand: (profileId: string, command: string, timeoutSeconds = 60) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/exec`, {
+      method: 'POST',
+      body: JSON.stringify({ command, timeoutSeconds }),
+    }),
+  executeSshCommand: (profileId: string, command: string, timeoutSeconds = 60) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/exec`, {
+      method: 'POST',
+      body: JSON.stringify({ command, timeoutSeconds }),
+    }),
+  getSshOverview: (profileId: string) =>
+    req<{ success: boolean; overview: SshServerOverview; errorMessage?: string }>(`/api/ssh/${profileId}/overview`),
+  getSshPorts: (profileId: string) =>
+    req<{ success: boolean; ports: SshListeningPortItem[]; errorMessage?: string }>(`/api/ssh/${profileId}/ports`),
+  killSshPortProcess: (profileId: string, pid: number, force = true) =>
+    req<{ success: boolean; errorMessage?: string }>(`/api/ssh/${profileId}/ports/kill`, {
+      method: 'POST',
+      body: JSON.stringify({ pid, force }),
+    }),
+  getSshProcesses: (profileId: string) =>
+    req<{ success: boolean; processes: SshProcessItem[]; errorMessage?: string }>(`/api/ssh/${profileId}/processes`),
+  executeSshProcessAction: (profileId: string, type: 'systemd' | 'pm2', processNameOrId: string, action: string) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/processes/action`, {
+      method: 'POST',
+      body: JSON.stringify({ type, processNameOrId, action }),
+    }),
+  createSshSystemdService: (profileId: string, data: { serviceName: string; execStart: string; workingDir: string; user: string; envVars?: string }) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/processes/create-systemd`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getSshNginxStatus: (profileId: string) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/nginx/status`),
+  getSshNginxSites: (profileId: string) =>
+    req<{ success: boolean; sites: SshNginxSiteItem[]; errorMessage?: string }>(`/api/ssh/${profileId}/nginx/sites`),
+  saveSshNginxSite: (profileId: string, siteConfig: SshNginxSaveRequest) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/nginx/sites`, {
+      method: 'POST',
+      body: JSON.stringify(siteConfig),
+    }),
+  toggleSshNginxSite: (profileId: string, siteName: string, enable: boolean) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/nginx/sites/toggle`, {
+      method: 'POST',
+      body: JSON.stringify({ siteName, enable }),
+    }),
+  deleteSshNginxSite: (profileId: string, siteName: string) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/nginx/sites/${encodeURIComponent(siteName)}`, {
+      method: 'DELETE',
+    }),
+  reloadSshNginx: (profileId: string) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/nginx/reload`, { method: 'POST' }),
+  getSshNginxLogs: (profileId: string, type = 'error', lines = 100) =>
+    req<{ logs: string }>(`/api/ssh/${profileId}/nginx/logs?type=${type}&lines=${lines}`),
+  getSshCertbotStatus: (profileId: string) =>
+    req<{ success: boolean; certificates: SshCertbotCertificateItem[]; errorMessage?: string }>(`/api/ssh/${profileId}/certbot/status`),
+  installSshCertbot: (profileId: string) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/certbot/install`, { method: 'POST' }),
+  issueSshCertbotSsl: (profileId: string, domain: string, email: string) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/certbot/issue`, {
+      method: 'POST',
+      body: JSON.stringify({ domain, email }),
+    }),
+  checkSshDomains: (profileId: string, domains: string[]) =>
+    req<{ success: boolean; domains: SshDomainItem[]; errorMessage?: string }>(`/api/ssh/${profileId}/domains/check`, {
+      method: 'POST',
+      body: JSON.stringify({ domains }),
+    }),
+  sshServerGitClone: (profileId: string, repoUrl: string, targetDir: string, branch = 'main') =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/git/clone`, {
+      method: 'POST',
+      body: JSON.stringify({ repoUrl, targetDir, branch }),
+    }),
+  sshServerGitPull: (profileId: string, targetDir: string, branch = 'main', postDeployCommand?: string) =>
+    req<SshCommandResult>(`/api/ssh/${profileId}/git/pull`, {
+      method: 'POST',
+      body: JSON.stringify({ targetDir, branch, postDeployCommand }),
+    }),
+  getSshServerGitStatus: (profileId: string, targetDir: string) =>
+    req<SshGitDeploymentItem>(`/api/ssh/${profileId}/git/status`, {
+      method: 'POST',
+      body: JSON.stringify({ targetDir }),
+    }),
+  getSshServerMetadata: (profileId: string) =>
+    req<{ success: boolean; metadata: SshServerMetadata; errorMessage?: string }>(`/api/ssh/${profileId}/metadata`),
+  saveSshServerMetadata: (profileId: string, metadata: SshServerMetadata) =>
+    req<{ success: boolean; errorMessage?: string }>(`/api/ssh/${profileId}/metadata`, {
+      method: 'POST',
+      body: JSON.stringify(metadata),
+    }),
+
   // Terminal
   getShells: () => req<ShellDescriptor[]>('/api/terminal/shells'),
   createTerminal: (shellType: TerminalShellType, workingDirectory?: string, cols = 80, rows = 24) =>
@@ -377,6 +497,30 @@ export const api = {
     req<AiChatResponse>('/api/ai/chat', { method: 'POST', body: JSON.stringify(data) }),
   generateAiCommit: (data: AiGenerateCommitRequest) =>
     req<AiChatResponse>('/api/ai/git/generate-commit', { method: 'POST', body: JSON.stringify(data) }),
+
+  // ------------------ WINDOWS DEV OPS ------------------
+  getListeningPorts: () => req<PortListeningItem[]>('/api/devops/ports'),
+  killProcess: (pid: number, force = true) =>
+    req<KillProcessResult>('/api/devops/ports/kill', {
+      method: 'POST',
+      body: JSON.stringify({ pid, force }),
+    }),
+  getHostEntries: () => req<HostEntryItem[]>('/api/devops/hosts'),
+  saveHostEntries: (entries: HostEntryItem[], autoFlushDns = true) =>
+    req<{ success: boolean }>('/api/devops/hosts', {
+      method: 'POST',
+      body: JSON.stringify({ entries, autoFlushDns }),
+    }),
+  flushDns: () =>
+    req<{ success: boolean }>('/api/devops/hosts/flush-dns', {
+      method: 'POST',
+    }),
+  getEnvVariables: () => req<SystemEnvVariableItem[]>('/api/devops/env'),
+  compareDotEnv: (currentEnv: string, exampleEnv: string) =>
+    req<DotEnvCompareResult>('/api/devops/dotenv/compare', {
+      method: 'POST',
+      body: JSON.stringify({ currentEnv, exampleEnv }),
+    }),
 
   // WebSocket Helpers
   getTerminalWsUrl: (sessionId: string) => {

@@ -1291,10 +1291,10 @@ Quy ước trả lời:
                     <button
                       type="button"
                       onClick={handleExecutePlanInTerminal}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold text-xs shadow-glow-emerald hover:scale-105 transition-all cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition-colors cursor-pointer"
                     >
-                      <Zap className="w-3.5 h-3.5 fill-current" />
-                      <span>⚡ Thực thi Kế hoạch</span>
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Thực thi Kế hoạch</span>
                     </button>
                   </div>
 
@@ -1457,10 +1457,10 @@ Quy ước trả lời:
                       type="button"
                       onClick={() => handleSendPrompt()}
                       disabled={isLoading || !inputPrompt.trim()}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors cursor-pointer ${
                         isLoading || !inputPrompt.trim()
                           ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-glow-emerald hover:scale-105'
+                          : 'bg-blue-600 hover:bg-blue-500 text-white'
                       }`}
                     >
                       <Send className="w-3.5 h-3.5" />
@@ -1566,7 +1566,7 @@ Quy ước trả lời:
               <button
                 type="button"
                 onClick={handleCreateWorkspace}
-                className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 text-xs font-bold rounded-lg cursor-pointer hover:scale-105 transition-all shadow-glow-emerald"
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg cursor-pointer transition-colors"
               >
                 Tạo Không Gian Dự Án
               </button>
@@ -1673,13 +1673,13 @@ Quy ước trả lời:
                 type="button"
                 onClick={handleApplyScaffoldingPlan}
                 disabled={!selectedTemplate || !projectNameInput.trim()}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                   !selectedTemplate || !projectNameInput.trim()
                     ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 hover:scale-105 shadow-glow-emerald'
+                    : 'bg-blue-600 hover:bg-blue-500 text-white'
                 }`}
               >
-                Tạo Kế Hoạch Thực Thi Ngay
+                Tạo Kế Hoạch Thực Thi
               </button>
             </div>
           </div>
@@ -2142,7 +2142,7 @@ Hãy trả lời ngắn gọn, chuẩn xác, định dạng rõ ràng, code bloc
           type="button"
           onClick={() => executeCliCommand(cliInput)}
           disabled={isProcessing || !cliInput.trim()}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold text-xs shadow-glow-emerald cursor-pointer hover:scale-105 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {isProcessing ? (
             <>

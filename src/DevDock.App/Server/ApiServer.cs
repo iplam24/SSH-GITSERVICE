@@ -88,6 +88,7 @@ public class ApiServer
         builder.Services.AddSingleton<ISetupService, SetupService>();
         builder.Services.AddSingleton<ISystemMetricsService, SystemMetricsService>();
         builder.Services.AddSingleton<ICommandService, CommandService>();
+        builder.Services.AddSingleton<IDevOpsService, DevOpsService>();
         builder.Services.AddSingleton<IPluginManager, DevDock.Plugins.PluginManager>();
         builder.Services.AddHttpClient();
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -179,62 +180,189 @@ public class ApiServer
             return Results.Ok();
         });
 
+        api.MapPost("/system/browse-folder", async (HttpContext ctx) =>
+        {
+            string? initialPath = null;
+            if (ctx.Request.ContentLength.HasValue && ctx.Request.ContentLength > 0)
+            {
+                try
+                {
+                    var req = await ctx.Request.ReadFromJsonAsync<BrowseFolderRequest>();
+                    initialPath = req?.InitialPath;
+                }
+                catch { }
+            }
+
+            string? selectedFolder = null;
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null)
+            {
+                dispatcher.Invoke(() =>
+                {
+                    var dlg = new Microsoft.Win32.OpenFolderDialog
+                    {
+                        Title = "Chọn thư mục dự án mã nguồn",
+                        Multiselect = false
+                    };
+                    if (!string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath))
+                    {
+                        dlg.InitialDirectory = initialPath;
+                    }
+
+                    var mainWindow = System.Windows.Application.Current?.MainWindow;
+                    var result = mainWindow != null ? dlg.ShowDialog(mainWindow) : dlg.ShowDialog();
+                    if (result == true)
+                    {
+                        selectedFolder = dlg.FolderName;
+                    }
+                });
+            }
+            else
+            {
+                var thread = new Thread(() =>
+                {
+                    var dlg = new Microsoft.Win32.OpenFolderDialog
+                    {
+                        Title = "Chọn thư mục dự án mã nguồn",
+                        Multiselect = false
+                    };
+                    if (!string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath))
+                    {
+                        dlg.InitialDirectory = initialPath;
+                    }
+
+                    if (dlg.ShowDialog() == true)
+                    {
+                        selectedFolder = dlg.FolderName;
+                    }
+                });
+                thread.SetApartmentState(ApartmentState.STA);
+                thread.Start();
+                thread.Join();
+            }
+
+            return Results.Ok(new { folder = selectedFolder, canceled = string.IsNullOrEmpty(selectedFolder) });
+        });
+
         // ------------------ GIT ------------------
         api.MapGet("/git/status", async (string repoPath, IGitService svc) =>
             Results.Ok(await svc.GetStatusAsync(repoPath)));
 
         api.MapPost("/git/stage", async (GitPathRequest req, IGitService svc) =>
         {
-            await svc.StageFileAsync(req.RepoPath, req.FilePath);
-            return Results.Ok();
+            try
+            {
+                await svc.StageFileAsync(req.RepoPath, req.FilePath);
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/unstage", async (GitPathRequest req, IGitService svc) =>
         {
-            await svc.UnstageFileAsync(req.RepoPath, req.FilePath);
-            return Results.Ok();
+            try
+            {
+                await svc.UnstageFileAsync(req.RepoPath, req.FilePath);
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/stage-all", async (GitRepoRequest req, IGitService svc) =>
         {
-            await svc.StageAllAsync(req.RepoPath);
-            return Results.Ok();
+            try
+            {
+                await svc.StageAllAsync(req.RepoPath);
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/unstage-all", async (GitRepoRequest req, IGitService svc) =>
         {
-            await svc.UnstageAllAsync(req.RepoPath);
-            return Results.Ok();
+            try
+            {
+                await svc.UnstageAllAsync(req.RepoPath);
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/discard", async (GitPathRequest req, IGitService svc) =>
         {
-            await svc.DiscardChangesAsync(req.RepoPath, req.FilePath);
-            return Results.Ok();
+            try
+            {
+                await svc.DiscardChangesAsync(req.RepoPath, req.FilePath);
+                return Results.Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/commit", async (GitCommitRequest req, IGitService svc) =>
         {
-            var output = await svc.CommitAsync(req);
-            return Results.Ok(new { output });
+            try
+            {
+                var output = await svc.CommitAsync(req);
+                return Results.Ok(new { success = true, output });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/push", async (GitPushPullRequest req, IGitService svc) =>
         {
-            var output = await svc.PushAsync(req.RepoPath, req.Remote, req.Branch);
-            return Results.Ok(new { output });
+            try
+            {
+                var output = await svc.PushAsync(req.RepoPath, req.Remote, req.Branch);
+                return Results.Ok(new { success = true, output });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/pull", async (GitPushPullRequest req, IGitService svc) =>
         {
-            var output = await svc.PullAsync(req.RepoPath, req.Remote, req.Branch);
-            return Results.Ok(new { output });
+            try
+            {
+                var output = await svc.PullAsync(req.RepoPath, req.Remote, req.Branch);
+                return Results.Ok(new { success = true, output });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapPost("/git/fetch", async (GitPushPullRequest req, IGitService svc) =>
         {
-            var output = await svc.FetchAsync(req.RepoPath, req.Remote);
-            return Results.Ok(new { output });
+            try
+            {
+                var output = await svc.FetchAsync(req.RepoPath, req.Remote);
+                return Results.Ok(new { success = true, output });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message, error = ex.Message });
+            }
         });
 
         api.MapGet("/git/branches", async (string repoPath, IGitService svc) =>
@@ -255,8 +383,8 @@ public class ApiServer
         api.MapGet("/git/commits", async (string repoPath, int? count, IGitService svc) =>
             Results.Ok(await svc.GetRecentCommitsAsync(repoPath, count ?? 25)));
 
-        api.MapGet("/git/diff", async (string repoPath, string filePath, bool? staged, IGitService svc) =>
-            Results.Ok(await svc.GetFileDiffAsync(repoPath, filePath, staged ?? false)));
+        api.MapGet("/git/diff", async (string repoPath, string filePath, bool? staged, int? contextLines, IGitService svc) =>
+            Results.Ok(await svc.GetFileDiffAsync(repoPath, filePath, staged ?? false, contextLines ?? 3)));
 
         api.MapPost("/git/stash", async (GitStashRequest req, IGitService svc) =>
         {
@@ -443,7 +571,22 @@ public class ApiServer
                         info,
                         shellStream,
                         shellStream,
-                        (cols, rows) => { },
+                        (cols, rows) =>
+                        {
+                            if (cols > 0 && rows > 0)
+                            {
+                                try
+                                {
+                                    var field = typeof(Renci.SshNet.ShellStream).GetField("_channel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                    if (field?.GetValue(shellStream) is { } channel)
+                                    {
+                                        var method = channel.GetType().GetMethod("SendWindowChangeRequest", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                        method?.Invoke(channel, new object[] { (uint)cols, (uint)rows, (uint)(cols * 8), (uint)(rows * 16) });
+                                    }
+                                }
+                                catch { }
+                            }
+                        },
                         () =>
                         {
                             try { shellStream.Dispose(); } catch { }
@@ -519,6 +662,206 @@ public class ApiServer
             try
             {
                 var ok = await svc.SftpCreateDirectoryAsync(req.ProfileId, req.Path);
+                return Results.Ok(new { success = ok });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message });
+            }
+        });
+
+        // ------------------ SSH ADVANCED SERVER MANAGEMENT ------------------
+        api.MapPost("/ssh/{id}/exec", async (string id, SshExecCommandRequest req, ISshService svc) =>
+        {
+            try
+            {
+                var res = await svc.ExecuteCommandAsync(id, req.Command, req.TimeoutSeconds <= 0 ? 60 : req.TimeoutSeconds);
+                return Results.Ok(res);
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new SshCommandResult { Success = false, Error = ex.Message });
+            }
+        });
+
+        api.MapGet("/ssh/{id}/overview", async (string id, ISshService svc) =>
+        {
+            try
+            {
+                var res = await svc.GetServerOverviewAsync(id);
+                return Results.Ok(new { success = true, overview = res });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message, overview = new SshServerOverview() });
+            }
+        });
+
+        api.MapGet("/ssh/{id}/ports", async (string id, ISshService svc) =>
+        {
+            try
+            {
+                var ports = await svc.GetListeningPortsAsync(id);
+                return Results.Ok(new { success = true, ports });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message, ports = Array.Empty<SshListeningPortItem>() });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/ports/kill", async (string id, SshKillProcessRequest req, ISshService svc) =>
+        {
+            try
+            {
+                var ok = await svc.KillProcessAsync(id, req.Pid, req.Force);
+                return Results.Ok(new { success = ok });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message });
+            }
+        });
+
+        api.MapGet("/ssh/{id}/processes", async (string id, ISshService svc) =>
+        {
+            try
+            {
+                var processes = await svc.GetProcessesAsync(id);
+                return Results.Ok(new { success = true, processes });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message, processes = Array.Empty<SshProcessItem>() });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/processes/action", async (string id, SshProcessActionRequest req, ISshService svc) =>
+        {
+            try
+            {
+                var res = await svc.ProcessActionAsync(id, req.Type, req.ProcessNameOrId, req.Action);
+                return Results.Ok(res);
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new SshCommandResult { Success = false, Error = ex.Message });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/processes/create-systemd", async (string id, SshCreateSystemdRequest req, ISshService svc) =>
+        {
+            try
+            {
+                var res = await svc.CreateSystemdServiceAsync(id, req.ServiceName, req.ExecStart, req.WorkingDir, req.User, req.EnvVars);
+                return Results.Ok(res);
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new SshCommandResult { Success = false, Error = ex.Message });
+            }
+        });
+
+        api.MapGet("/ssh/{id}/nginx/status", async (string id, ISshService svc) =>
+            Results.Ok(await svc.GetNginxStatusAsync(id)));
+
+        api.MapGet("/ssh/{id}/nginx/sites", async (string id, ISshService svc) =>
+        {
+            try
+            {
+                var sites = await svc.GetNginxSitesAsync(id);
+                return Results.Ok(new { success = true, sites });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message, sites = Array.Empty<SshNginxSiteItem>() });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/nginx/sites", async (string id, SshNginxSaveRequest req, ISshService svc) =>
+        {
+            try
+            {
+                var res = await svc.SaveNginxSiteAsync(id, req);
+                return Results.Ok(res);
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new SshCommandResult { Success = false, Error = ex.Message });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/nginx/sites/toggle", async (string id, SshToggleNginxSiteRequest req, ISshService svc) =>
+            Results.Ok(await svc.ToggleNginxSiteAsync(id, req.SiteName, req.Enable)));
+
+        api.MapDelete("/ssh/{id}/nginx/sites/{name}", async (string id, string name, ISshService svc) =>
+            Results.Ok(await svc.DeleteNginxSiteAsync(id, name)));
+
+        api.MapPost("/ssh/{id}/nginx/reload", async (string id, ISshService svc) =>
+            Results.Ok(await svc.ReloadNginxAsync(id)));
+
+        api.MapGet("/ssh/{id}/nginx/logs", async (string id, string? type, int? lines, ISshService svc) =>
+            Results.Ok(new { logs = await svc.GetNginxLogsAsync(id, type ?? "error", lines ?? 100) }));
+
+        api.MapGet("/ssh/{id}/certbot/status", async (string id, ISshService svc) =>
+        {
+            try
+            {
+                var certs = await svc.GetCertbotCertificatesAsync(id);
+                return Results.Ok(new { success = true, certificates = certs });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message, certificates = Array.Empty<SshCertbotCertificateItem>() });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/certbot/install", async (string id, ISshService svc) =>
+            Results.Ok(await svc.InstallCertbotAsync(id)));
+
+        api.MapPost("/ssh/{id}/certbot/issue", async (string id, SshIssueCertbotRequest req, ISshService svc) =>
+            Results.Ok(await svc.IssueCertbotSslAsync(id, req.Domain, req.Email)));
+
+        api.MapPost("/ssh/{id}/domains/check", async (string id, SshCheckDomainsRequest req, ISshService svc) =>
+        {
+            try
+            {
+                var domains = await svc.CheckDomainsAsync(id, req.Domains);
+                return Results.Ok(new { success = true, domains });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message, domains = Array.Empty<SshDomainItem>() });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/git/clone", async (string id, SshServerGitCloneRequest req, ISshService svc) =>
+            Results.Ok(await svc.GitCloneOnServerAsync(id, req.RepoUrl, req.TargetDir, req.Branch)));
+
+        api.MapPost("/ssh/{id}/git/pull", async (string id, SshServerGitPullRequest req, ISshService svc) =>
+            Results.Ok(await svc.GitPullOnServerAsync(id, req.TargetDir, req.Branch, req.PostDeployCommand)));
+
+        api.MapPost("/ssh/{id}/git/status", async (string id, SshServerGitStatusRequest req, ISshService svc) =>
+            Results.Ok(await svc.GetServerGitStatusAsync(id, req.TargetDir)));
+
+        api.MapGet("/ssh/{id}/metadata", async (string id, ISshService svc) =>
+        {
+            try
+            {
+                var meta = await svc.GetServerMetadataAsync(id);
+                return Results.Ok(new { success = true, metadata = meta });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { success = false, errorMessage = ex.Message, metadata = new SshServerMetadata() });
+            }
+        });
+
+        api.MapPost("/ssh/{id}/metadata", async (string id, SshServerMetadata req, ISshService svc) =>
+        {
+            try
+            {
+                var ok = await svc.SaveServerMetadataAsync(id, req);
                 return Results.Ok(new { success = ok });
             }
             catch (Exception ex)
@@ -657,6 +1000,28 @@ public class ApiServer
         api.MapPost("/ai/git/generate-commit", async (AiGenerateCommitRequest req, IAiService svc) =>
             Results.Ok(await svc.GenerateCommitMessageAsync(req)));
 
+        // ------------------ WINDOWS DEV OPS (PORTS, HOSTS, ENV) ------------------
+        api.MapGet("/devops/ports", async (IDevOpsService svc) =>
+            Results.Ok(await svc.GetListeningPortsAsync()));
+
+        api.MapPost("/devops/ports/kill", async (KillProcessRequest req, IDevOpsService svc) =>
+            Results.Ok(await svc.KillProcessByPidAsync(req.Pid, req.Force)));
+
+        api.MapGet("/devops/hosts", async (IDevOpsService svc) =>
+            Results.Ok(await svc.GetHostEntriesAsync()));
+
+        api.MapPost("/devops/hosts", async (SaveHostsRequest req, IDevOpsService svc) =>
+            Results.Ok(new { success = await svc.SaveHostEntriesAsync(req.Entries, req.AutoFlushDns) }));
+
+        api.MapPost("/devops/hosts/flush-dns", async (IDevOpsService svc) =>
+            Results.Ok(new { success = await svc.FlushDnsCacheAsync() }));
+
+        api.MapGet("/devops/env", async (IDevOpsService svc) =>
+            Results.Ok(await svc.GetEnvironmentVariablesAsync()));
+
+        api.MapPost("/devops/dotenv/compare", async (DotEnvCompareRequest req, IDevOpsService svc) =>
+            Results.Ok(await svc.CompareDotEnvAsync(req.CurrentEnv, req.ExampleEnv)));
+
         api.MapGet("/commands", async (ICommandService svc) =>
             Results.Ok(await svc.GetCommandsAsync()));
 
@@ -782,6 +1147,7 @@ public class ApiServer
 public record PathRequest(string Path);
 public record DetectPathRequest(string Path);
 public record OpenEditorRequest(string Path, string? Editor);
+public record BrowseFolderRequest(string? InitialPath = null);
 public record GitRepoRequest(string RepoPath);
 public record GitPathRequest(string RepoPath, string FilePath);
 public record GitPushPullRequest(string RepoPath, string? Remote, string? Branch);
@@ -791,3 +1157,13 @@ public record CreateTerminalRequest(TerminalShellType ShellType, string? Working
 public record CloseTerminalRequest(string SessionId);
 public record SshConnectTerminalRequest(string ProfileId, int Cols = 80, int Rows = 24);
 public record HttpRequestProxyModel(string Method, string Url, Dictionary<string, string>? Headers, string? Body, string? ContentType);
+public record SshExecCommandRequest(string Command, int TimeoutSeconds = 60);
+public record SshKillProcessRequest(int Pid, bool Force = true);
+public record SshProcessActionRequest(string Type, string ProcessNameOrId, string Action);
+public record SshCreateSystemdRequest(string ServiceName, string ExecStart, string WorkingDir, string User = "root", string? EnvVars = null);
+public record SshToggleNginxSiteRequest(string SiteName, bool Enable);
+public record SshIssueCertbotRequest(string Domain, string Email);
+public record SshCheckDomainsRequest(List<string> Domains);
+public record SshServerGitCloneRequest(string RepoUrl, string TargetDir, string Branch = "main");
+public record SshServerGitPullRequest(string TargetDir, string? Branch = "main", string? PostDeployCommand = null);
+public record SshServerGitStatusRequest(string TargetDir);
