@@ -170,8 +170,8 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <div className="relative w-64">
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          <div className="relative w-full sm:w-64">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-500" />
             <input
               type="text"
@@ -189,7 +189,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
               setInputPath('');
               setIsAddModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent-hover text-white text-xs font-medium transition-colors shadow-sm cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent-hover text-white text-xs font-medium transition-colors shadow-sm cursor-pointer whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Thêm Dự Án</span>
@@ -206,7 +206,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
             <p className="text-xs text-slate-600 mt-1">Đăng ký dự án mới bằng cách nhấn "+ Thêm Dự Án" ở trên</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(310px,1fr))] gap-3.5">
             {filteredProjects.map((p) => {
               return (
                 <div
@@ -277,10 +277,10 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
                           type="button"
                           onClick={() => handleRunCommand(p, 'dev')}
                           disabled={runningCmd?.projectId === p.id}
-                          className="flex-1 py-1 px-2 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#202638] cursor-pointer"
+                          className="flex-1 py-1 px-2 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#202638] cursor-pointer whitespace-nowrap"
                           title={`Chạy: ${p.commands.dev}`}
                         >
-                          <Play className="w-3 h-3 text-emerald-400" />
+                          <Play className="w-3 h-3 text-emerald-400 shrink-0" />
                           <span>Dev</span>
                         </button>
                       )}
@@ -289,10 +289,10 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
                           type="button"
                           onClick={() => handleRunCommand(p, 'build')}
                           disabled={runningCmd?.projectId === p.id}
-                          className="flex-1 py-1 px-2 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#202638] cursor-pointer"
+                          className="flex-1 py-1 px-2 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#202638] cursor-pointer whitespace-nowrap"
                           title={`Chạy: ${p.commands.build}`}
                         >
-                          <Hammer className="w-3 h-3 text-slate-400" />
+                          <Hammer className="w-3 h-3 text-slate-400 shrink-0" />
                           <span>Build</span>
                         </button>
                       )}
@@ -301,10 +301,10 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
                           type="button"
                           onClick={() => handleRunCommand(p, 'test')}
                           disabled={runningCmd?.projectId === p.id}
-                          className="flex-1 py-1 px-2 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#202638] cursor-pointer"
+                          className="flex-1 py-1 px-2 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-[#202638] cursor-pointer whitespace-nowrap"
                           title={`Chạy: ${p.commands.test}`}
                         >
-                          <TestTube className="w-3 h-3 text-slate-400" />
+                          <TestTube className="w-3 h-3 text-slate-400 shrink-0" />
                           <span>Test</span>
                         </button>
                       )}

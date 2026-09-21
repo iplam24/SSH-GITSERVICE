@@ -1326,89 +1326,87 @@ export const GitPage: React.FC<GitPageProps> = ({
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12]">
       {/* Top Bar: Repo selector, Current Branch, Quick Push/Pull/Fetch */}
-      <div className="h-11 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5">
-            <FolderGit2 className="w-4 h-4 text-slate-400" />
-            <select
-              value={activeRepoPath}
-              onChange={(e) => onSelectRepoPath(e.target.value)}
-              className="bg-[#12151f] hover:bg-[#171b26] text-slate-200 text-xs rounded-md px-2.5 py-1 border border-[#1e2332] focus:outline-none focus:border-accent font-medium cursor-pointer max-w-xs truncate"
-            >
-              {gitProjects.map((p) => (
-                <option key={p.id} value={p.path}>
-                  {p.name} ({p.path})
-                </option>
-              ))}
-              {gitProjects.length === 0 && (
-                <option value="">Chưa có dự án Git nào trong DevDock</option>
-              )}
-            </select>
+      <div className="h-11 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0 gap-2 overflow-x-auto select-none no-scrollbar">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <FolderGit2 className="w-4 h-4 text-slate-400 shrink-0" />
+          <select
+            value={activeRepoPath}
+            onChange={(e) => onSelectRepoPath(e.target.value)}
+            className="bg-[#12151f] hover:bg-[#171b26] text-slate-200 text-xs rounded-md px-2.5 py-1.5 border border-[#1e2332] focus:outline-none focus:border-accent font-medium cursor-pointer max-w-[140px] sm:max-w-[200px] xl:max-w-xs truncate shrink-0"
+          >
+            {gitProjects.map((p) => (
+              <option key={p.id} value={p.path}>
+                {p.name} ({p.path})
+              </option>
+            ))}
+            {gitProjects.length === 0 && (
+              <option value="">Chưa có dự án Git nào trong DevDock</option>
+            )}
+          </select>
 
+          <button
+            type="button"
+            onClick={() => {
+              setCustomFolderPath(activeRepoPath || 'D:\\ToolTienich');
+              setIsOpenFolderModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
+            title="Mở thư mục mã nguồn bất kỳ trên máy tính"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
+            <span className="hidden sm:inline">Mở thư mục</span>
+          </button>
+
+          {activeRepoPath && (
             <button
               type="button"
-              onClick={() => {
-                setCustomFolderPath(activeRepoPath || 'D:\\ToolTienich');
-                setIsOpenFolderModalOpen(true);
-              }}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
-              title="Mở thư mục mã nguồn bất kỳ trên máy tính"
+              onClick={() => handleOpenInExplorer(activeRepoPath)}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
+              title={`Mở "${activeRepoPath}" trong Windows File Explorer`}
             >
-              <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
-              <span>Mở Cục Bộ</span>
+              <Folder className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden md:inline">Explorer</span>
             </button>
+          )}
 
-            {activeRepoPath && (
-              <button
-                type="button"
-                onClick={() => handleOpenInExplorer(activeRepoPath)}
-                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
-                title={`Mở "${activeRepoPath}" trong Windows File Explorer`}
-              >
-                <Folder className="w-3.5 h-3.5 text-sky-400" />
-                <span>Explorer</span>
-              </button>
-            )}
+          <button
+            type="button"
+            onClick={() => openGitIgnoreModal()}
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-amber-300 border border-amber-500/30 text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
+            title="Quản lý & tạo tệp .gitignore cho dự án"
+          >
+            <Shield className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">.gitignore</span>
+          </button>
 
+          {activeRepoPath && onOpenTerminal && (
             <button
               type="button"
-              onClick={() => openGitIgnoreModal()}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-amber-300 border border-amber-500/30 text-xs font-medium cursor-pointer transition-colors"
-              title="Quản lý & tạo tệp .gitignore cho dự án"
+              onClick={() => onOpenTerminal(activeRepoPath)}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-emerald-300 border border-emerald-500/30 text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
+              title={`Mở Terminal tại thư mục "${activeRepoPath}"`}
             >
-              <Shield className="w-3.5 h-3.5 text-amber-400" />
-              <span>.gitignore</span>
+              <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden md:inline">Terminal</span>
             </button>
-
-            {activeRepoPath && onOpenTerminal && (
-              <button
-                type="button"
-                onClick={() => onOpenTerminal(activeRepoPath)}
-                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-emerald-300 border border-emerald-500/30 text-xs font-medium cursor-pointer transition-colors"
-                title={`Mở Terminal tại thư mục "${activeRepoPath}"`}
-              >
-                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Terminal</span>
-              </button>
-            )}
-          </div>
+          )}
 
           {repoStatus && (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-xs font-mono text-slate-300">
+            <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] text-xs font-mono text-slate-300 whitespace-nowrap shrink-0">
               <GitBranch className="w-3.5 h-3.5 text-slate-400" />
               <span className="font-semibold text-slate-200">{repoStatus.currentBranch}</span>
               {repoStatus.aheadCount > 0 && (
-                <span className="text-emerald-400 text-[10px] ml-0.5">↑{repoStatus.aheadCount}</span>
+                <span className="text-emerald-400 text-[10px] ml-0.5 font-bold">↑{repoStatus.aheadCount}</span>
               )}
               {repoStatus.behindCount > 0 && (
-                <span className="text-amber-400 text-[10px] ml-0.5">↓{repoStatus.behindCount}</span>
+                <span className="text-amber-400 text-[10px] ml-0.5 font-bold">↓{repoStatus.behindCount}</span>
               )}
             </div>
           )}
         </div>
 
         {/* Global Git Actions & Cloud Hub */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Quick Remote / Cloud actions */}
           <button
             type="button"
@@ -1418,21 +1416,21 @@ export const GitPage: React.FC<GitPageProps> = ({
                 loadCloudRepos(selectedAccountId, cloudSearch);
               }
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
             title="Duyệt và tìm nạp danh sách Repository từ GitHub/GitLab"
           >
             <Cloud className="w-3.5 h-3.5 text-slate-400" />
-            <span>Kho Cloud</span>
+            <span className="hidden lg:inline">Kho Cloud</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsCreateCloudRepoModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
             title="Tạo kho lưu trữ mới trên Cloud GitHub/GitLab"
           >
             <Plus className="w-3.5 h-3.5 text-slate-400" />
-            <span>Tạo Repo</span>
+            <span className="hidden lg:inline">Tạo Repo</span>
           </button>
 
           <button
@@ -1440,44 +1438,44 @@ export const GitPage: React.FC<GitPageProps> = ({
             onClick={() => {
               openCicdModalForRepo(activeRepoPath, undefined, undefined, '');
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-slate-300 border border-[#1e2332] text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
             title="Tự động thiết lập GitHub Actions CI/CD triển khai ứng dụng lên máy chủ Server"
           >
             <Zap className="w-3.5 h-3.5 text-accent" />
             <span>CI/CD</span>
           </button>
 
-          <div className="h-4 w-px bg-[#1e2332] mx-1" />
+          <div className="h-4 w-px bg-[#1e2332] mx-0.5 shrink-0" />
 
           {/* Unified Git Sync Controls Segmented Group */}
-          <div className="inline-flex items-center rounded-md border border-[#1e2332] bg-[#12151f] overflow-hidden">
+          <div className="inline-flex items-center rounded-md border border-[#1e2332] bg-[#12151f] overflow-hidden shrink-0 shadow-sm">
             <button
               type="button"
               onClick={handleFetch}
               disabled={loading || !activeRepoPath}
-              className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[#171b26] text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 border-r border-[#1e2332]"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 hover:bg-[#171b26] text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 border-r border-[#1e2332] whitespace-nowrap"
               title="Đồng bộ cập nhật mới từ Remote (Fetch)"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
-              <span>Fetch</span>
+              <span className="hidden sm:inline">Fetch</span>
             </button>
 
             <button
               type="button"
               onClick={handlePull}
               disabled={loading || !activeRepoPath}
-              className="flex items-center gap-1.5 px-2.5 py-1 hover:bg-[#171b26] text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 border-r border-[#1e2332]"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 hover:bg-[#171b26] text-slate-300 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 border-r border-[#1e2332] whitespace-nowrap"
               title="Kéo thay đổi mới về nhánh hiện tại (Pull)"
             >
               <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
-              <span>Pull</span>
+              <span className="hidden sm:inline">Pull</span>
             </button>
 
             <button
               type="button"
               onClick={handlePush}
               disabled={loading || !activeRepoPath}
-              className="flex items-center gap-1.5 px-3 py-1 bg-accent hover:bg-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-accent hover:bg-accent-hover text-white text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 whitespace-nowrap"
               title="Đẩy các commit lên remote (Push)"
             >
               <ArrowUp className="w-3.5 h-3.5" />
@@ -1488,12 +1486,12 @@ export const GitPage: React.FC<GitPageProps> = ({
       </div>
 
       {/* Sub-Tabs Navigation Bar */}
-      <div className="h-9 border-b border-[#1a1e2a] bg-[#0a0c10] px-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-1">
+      <div className="h-9 border-b border-[#1a1e2a] bg-[#0a0c10] px-3 flex items-center justify-between flex-shrink-0 gap-2 overflow-x-auto select-none no-scrollbar">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('changes')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'changes'
                 ? 'bg-white/[0.08] text-slate-100 font-semibold'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
@@ -1502,7 +1500,7 @@ export const GitPage: React.FC<GitPageProps> = ({
             <Layers className="w-3.5 h-3.5" />
             <span>Thay đổi</span>
             {totalChanges > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-accent/20 text-accent-light text-[10px] font-mono">
+              <span className="px-1.5 py-0.2 rounded-full bg-accent/20 text-accent-light text-[10px] font-mono font-bold">
                 {totalChanges}
               </span>
             )}
@@ -1511,7 +1509,7 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'history'
                 ? 'bg-white/[0.08] text-slate-100 font-semibold'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
@@ -1527,7 +1525,7 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('branches')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'branches'
                 ? 'bg-white/[0.08] text-slate-100 font-semibold'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
@@ -1541,7 +1539,7 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('tags')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'tags'
                 ? 'bg-white/[0.08] text-slate-100 font-semibold'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
@@ -1557,7 +1555,7 @@ export const GitPage: React.FC<GitPageProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('cloud')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'cloud'
                 ? 'bg-white/[0.08] text-slate-100 font-semibold'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
@@ -1572,7 +1570,7 @@ export const GitPage: React.FC<GitPageProps> = ({
         </div>
 
         {/* Quick Stash & Git Init shortcut */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -1625,7 +1623,7 @@ export const GitPage: React.FC<GitPageProps> = ({
         {activeTab === 'changes' && (
           <div className="flex-1 flex overflow-hidden">
             {/* Left Column: Changed Files List & Commit Box */}
-            <div className="w-[340px] sm:w-[380px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col justify-between flex-shrink-0 overflow-hidden">
+            <div className="w-72 md:w-80 xl:w-[360px] border-r border-[#1a1e2a] bg-[#0c0e14] flex flex-col justify-between flex-shrink-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
                 {/* Search Filter for Changed Files */}
                 <div className="relative">

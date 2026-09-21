@@ -462,7 +462,7 @@ export const SshPage: React.FC<SshPageProps> = ({
                 <p className="text-xs text-slate-600 mt-1">Bấm "+ Thêm Kết Nối" để đăng ký máy chủ Linux/VPS của bạn</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(330px,1fr))] gap-4">
                 {filteredProfiles.map((p) => (
                   <div
                     key={p.id}
@@ -487,7 +487,7 @@ export const SshPage: React.FC<SshPageProps> = ({
                         </div>
                       </div>
 
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0B0F17] text-slate-400 border border-[#1E293B]">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0B0F17] text-slate-400 border border-[#1E293B] shrink-0">
                         {p.authType === 'Password'
                           ? 'Mật khẩu'
                           : p.authType === 'PrivateKey'
@@ -497,21 +497,21 @@ export const SshPage: React.FC<SshPageProps> = ({
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
+                    <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
                         <button
                           type="button"
                           onClick={() => onConnectTerminal(p)}
-                          className="px-2.5 py-1.5 rounded-lg bg-accent-bg hover:bg-accent-bg-hover text-accent-light text-xs font-semibold flex items-center gap-1 transition-colors border border-accent-border cursor-pointer shadow-sm"
+                          className="h-8 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-emerald-500/30 cursor-pointer shadow-sm whitespace-nowrap"
                           title="Mở tab Terminal và kết nối ngay tới máy chủ"
                         >
-                          <Play className="w-3 h-3 fill-accent" />
+                          <Play className="w-3 h-3 fill-emerald-400" />
                           <span>Shell</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleOpenManage(p)}
-                          className="px-2.5 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-xs font-semibold flex items-center gap-1 transition-colors border border-blue-500/30 cursor-pointer shadow-sm"
+                          className="h-8 px-2.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-blue-500/30 cursor-pointer shadow-sm whitespace-nowrap"
                           title="Mở Trung Tâm Quản Trị Máy Chủ (Cổng, Nginx, SSL, Git, Process)"
                         >
                           <Sliders className="w-3 h-3 text-blue-400" />
@@ -520,17 +520,17 @@ export const SshPage: React.FC<SshPageProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenSftp(p)}
-                          className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-xs font-semibold flex items-center gap-1 transition-colors border border-cyan-500/30 cursor-pointer shadow-sm"
+                          className="h-8 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-cyan-500/30 cursor-pointer shadow-sm whitespace-nowrap"
                           title="Mở Trình Quản Lý Tệp SFTP kéo thả file"
                         >
-                          <FolderTree className="w-3 h-3 text-cyan-400" />
-                          <span>Tệp SFTP</span>
+                          <FolderTree className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>SFTP</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleTestConnection(p)}
                           disabled={testingId === p.id}
-                          className="px-2 py-1.5 rounded-lg bg-[#0B0F17] hover:bg-[#1E293B] text-slate-300 text-xs font-medium flex items-center gap-1 transition-colors border border-[#1E293B] cursor-pointer"
+                          className="h-8 px-2.5 rounded-lg bg-[#0B0F17] hover:bg-[#1E293B] text-slate-300 text-xs font-medium flex items-center gap-1.5 transition-colors border border-[#1E293B] cursor-pointer whitespace-nowrap"
                           title="Kiểm tra ping và tính hợp lệ của tài khoản"
                         >
                           <Activity className={`w-3 h-3 ${testingId === p.id ? 'animate-spin text-cyan-400' : ''}`} />
@@ -538,11 +538,11 @@ export const SshPage: React.FC<SshPageProps> = ({
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-1 text-slate-400">
+                      <div className="flex items-center gap-1 text-slate-400 shrink-0">
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(p)}
-                          className="p-1.5 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                          className="w-8 h-8 flex items-center justify-center hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                           title="Chỉnh sửa thông tin kết nối"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -550,7 +550,7 @@ export const SshPage: React.FC<SshPageProps> = ({
                         <button
                           type="button"
                           onClick={() => handleDeleteProfile(p)}
-                          className="p-1.5 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors cursor-pointer"
+                          className="w-8 h-8 flex items-center justify-center hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                           title="Xóa cấu hình kết nối"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

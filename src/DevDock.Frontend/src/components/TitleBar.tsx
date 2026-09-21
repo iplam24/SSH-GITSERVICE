@@ -45,13 +45,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       <button
         type="button"
         onClick={onOpenCommandPalette}
-        className="flex items-center gap-2 px-3 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] border border-[#1e2332] text-slate-400 text-xs transition-all duration-150 group w-72 max-w-sm justify-between shadow-subtle hover:border-slate-600 cursor-pointer"
+        className="hidden sm:flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] border border-[#1e2332] text-slate-400 text-xs transition-all duration-150 group w-44 md:w-60 lg:w-72 max-w-sm justify-between shadow-subtle hover:border-slate-600 cursor-pointer"
       >
-        <div className="flex items-center gap-2">
-          <Search className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
-          <span className="text-slate-400 group-hover:text-slate-200 text-[11px]">Tìm lệnh, AI, kho Git, SSH...</span>
+        <div className="flex items-center gap-2 overflow-hidden">
+          <Search className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-colors shrink-0" />
+          <span className="text-slate-400 group-hover:text-slate-200 text-[11px] truncate">Tìm lệnh, AI, kho Git, SSH...</span>
         </div>
-        <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-[#0c0e14] text-slate-400 group-hover:text-slate-300 rounded border border-[#1e2332]">
+        <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-[#0c0e14] text-slate-400 group-hover:text-slate-300 rounded border border-[#1e2332] shrink-0">
           Ctrl+Space
         </kbd>
       </button>
