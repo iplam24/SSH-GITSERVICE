@@ -1,0 +1,102 @@
+name: Release DevDock Workstation
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v1.5.0)'
+        required: true
+        default: 'v1.5.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release Binaries
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: src/DevDock.Frontend/package-lock.json
+
+      - name: Setup .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd src/DevDock.Frontend
+          npm ci
+
+      - name: Build Frontend & Package Windows Installer
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1
+
+      - name: Generate SHA256 Checksums
+        shell: powershell
+        run: |
+          cd dist
+          Get-FileHash -Algorithm SHA256 setup-devdock.exe, DevDock-portable-win-x64.zip | 
+            Select-Object Hash, @{Name="FileName"; Expression={Split-Path $_.Path -Leaf}} | 
+            Format-Table -AutoSize | 
+            Out-String | 
+            Out-File -Encoding utf8 checksums.txt
+          Get-Content checksums.txt
+
+      - name: Determine Release Tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: DevDock Workstation ${{ steps.vars.outputs.tag }}
+          body: |
+            ## 🚀 DevDock Workstation ${{ steps.vars.outputs.tag }}
+            
+            Bản phát hành chính thức của DevDock Workstation dành cho Windows (x64).
+            
+            ### 📦 Các Tệp Tải Về
+            - **`setup-devdock.exe`**: Trình cài đặt tự động (Khuyên dùng). Tự bung nén, tạo Shortcut Desktop & Start Menu, đăng ký giao thức `devdock://`.
+            - **`DevDock-portable-win-x64.zip`**: Bản Portable chạy ngay không cần cài đặt.
+            - **`checksums.txt`**: Mã băm kiểm tra tính toàn vẹn SHA-256.
+            
+            ### ✨ Tính Năng Nổi Bật
+            - **SSH Remote Control Center**: Quản trị máy chủ, quét listening ports, tự động tạo Nginx reverse proxy, kiểm tra DNS A-record & cấp SSL Let's Encrypt 1-click.
+            - **Server Git Deployments**: Clone repo vào server, theo dõi commit và tự động pull + chạy lệnh post-deploy.
+            - **Git Multi-Account Manager**: Tách biệt tài khoản cá nhân & công ty, giải quyết xung đột Merge Conflicts trực quan.
+            - **Windows DevOps Hub**: Quản lý port chiếm dụng, sửa file `hosts` an toàn, quản lý biến `PATH`, so sánh `.env`.
+            - **Terminal Tích Hợp Đa Shell**: PowerShell 7, WSL Ubuntu, CMD, Git Bash.
+            - **AI Hub**: Hỗ trợ OpenAI, Claude, Gemini, DeepSeek, Local Ollama.
+            - **Cẩm Nang Hướng Dẫn Sử Dụng**: Tích hợp sẵn tài liệu tra cứu tương tác (`F1`).
+          files: |
+            dist/setup-devdock.exe
+            dist/DevDock-portable-win-x64.zip
+            dist/checksums.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

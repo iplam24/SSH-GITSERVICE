@@ -26,6 +26,7 @@ interface HomePageProps {
   activeAiModel?: string;
   onNavigate: (route: NavRoute) => void;
   onOpenTerminalForProject: (p: ProjectItem) => void;
+  onOpenTerminalForPath?: (path: string) => void;
   onConnectSsh: (p: SshProfile) => void;
   onRunProjectDev: (p: ProjectItem) => void;
 }
@@ -39,6 +40,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   activeAiModel,
   onNavigate,
   onOpenTerminalForProject,
+  onOpenTerminalForPath,
   onConnectSsh,
   onRunProjectDev,
 }) => {
@@ -280,14 +282,27 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <GitBranch className="w-4 h-4 text-slate-400" />
                 <h2 className="text-xs font-semibold text-slate-100 uppercase tracking-wider">Trạng Thái Git Hiện Tại</h2>
               </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('git')}
-                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 font-medium cursor-pointer transition-colors"
-              >
-                <span>Mở Quản lý Git</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-3">
+                {activeRepoPath && onOpenTerminalForPath && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTerminalForPath(activeRepoPath)}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium cursor-pointer transition-colors"
+                    title={`Mở Terminal tại "${activeRepoPath}"`}
+                  >
+                    <Terminal className="w-3.5 h-3.5" />
+                    <span>Terminal</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onNavigate('git')}
+                  className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 font-medium cursor-pointer transition-colors"
+                >
+                  <span>Mở Quản lý Git</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {gitStatus ? (

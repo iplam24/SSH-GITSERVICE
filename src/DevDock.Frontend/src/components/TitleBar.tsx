@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Minus, Square, X, Cpu, HardDrive, Sparkles } from 'lucide-react';
+import { Search, Minus, Square, X, Cpu, HardDrive, Sparkles, BookOpen } from 'lucide-react';
 import { windowControls } from '../services/api';
 import { SystemMetrics } from '../types';
 import { DevDockLogo } from './DevDockLogo';
@@ -9,6 +9,7 @@ interface TitleBarProps {
   activeAiModel?: string;
   onOpenCommandPalette: () => void;
   onOpenAiHub?: () => void;
+  onOpenGuide?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
@@ -16,6 +17,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   activeAiModel,
   onOpenCommandPalette,
   onOpenAiHub,
+  onOpenGuide,
 }) => {
   return (
     <header
@@ -66,6 +68,19 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           >
             <Sparkles className="w-3 h-3 text-accent" />
             <span className="max-w-[120px] truncate">{activeAiModel}</span>
+          </button>
+        )}
+
+        {/* Guide / Handbook Trigger */}
+        {onOpenGuide && (
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#12151f] hover:bg-[#181c28] border border-[#1e2332] text-[11px] text-slate-300 font-medium transition-colors cursor-pointer"
+            title="Mở Cẩm Nang Hướng Dẫn Sử Dụng (F1)"
+          >
+            <BookOpen className="w-3 h-3 text-accent" />
+            <span className="hidden sm:inline">Hướng dẫn</span>
           </button>
         )}
 

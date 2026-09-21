@@ -311,6 +311,18 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
             </button>
           </div>
 
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new Event('resize'));
+              onShowToast('Đã căn chỉnh lại màn hình Terminal', 'info');
+            }}
+            className="p-1 rounded text-slate-400 hover:text-emerald-400 hover:bg-white/[0.04] transition-colors cursor-pointer"
+            title="Căn chỉnh và làm mới màn hình Terminal (Fit)"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+
           <div className="w-[1px] h-3.5 bg-[#1E2A44]" />
 
           <button
@@ -340,29 +352,37 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
             </button>
           </div>
         ) : splitMode === 'single' ? (
-          tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={`w-full h-full ${tab.id === activeTabId ? 'block' : 'hidden'}`}
-            >
-              <XTermInstance
-                sessionId={tab.id}
-                initialCommand={tab.id === activeTabId ? pendingRunCommand : undefined}
-                onCommandExecuted={onClearPendingRunCommand}
-                fontSize={terminalFontSize}
-                fontFamily={terminalFontFamily}
-                backgroundImage={terminalBackgroundImage}
-                backgroundOpacity={terminalBackgroundOpacity}
-                backgroundBlur={terminalBackgroundBlur}
-              />
-            </div>
-          ))
+          tabs.map((tab) => {
+            const isActive = tab.id === activeTabId;
+            return (
+              <div
+                key={tab.id}
+                className={`w-full h-full ${isActive ? 'block' : 'hidden'}`}
+                style={{ display: isActive ? 'block' : 'none' }}
+              >
+                <XTermInstance
+                  sessionId={tab.id}
+                  isActive={isActive}
+                  isPageVisible={isPageVisible}
+                  initialCommand={isActive ? pendingRunCommand : undefined}
+                  onCommandExecuted={onClearPendingRunCommand}
+                  fontSize={terminalFontSize}
+                  fontFamily={terminalFontFamily}
+                  backgroundImage={terminalBackgroundImage}
+                  backgroundOpacity={terminalBackgroundOpacity}
+                  backgroundBlur={terminalBackgroundBlur}
+                />
+              </div>
+            );
+          })
         ) : splitMode === 'vertical' ? (
           <div className="w-full h-full grid grid-cols-2 divide-x divide-[#1E2A44]">
             <div className="w-full h-full overflow-hidden">
               {tabs[0] && (
                 <XTermInstance
                   sessionId={tabs[0].id}
+                  isActive={true}
+                  isPageVisible={isPageVisible}
                   fontSize={terminalFontSize}
                   fontFamily={terminalFontFamily}
                   backgroundImage={terminalBackgroundImage}
@@ -375,6 +395,8 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
               {tabs[1] ? (
                 <XTermInstance
                   sessionId={tabs[1].id}
+                  isActive={true}
+                  isPageVisible={isPageVisible}
                   fontSize={terminalFontSize}
                   fontFamily={terminalFontFamily}
                   backgroundImage={terminalBackgroundImage}
@@ -394,6 +416,8 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
               {tabs[0] && (
                 <XTermInstance
                   sessionId={tabs[0].id}
+                  isActive={true}
+                  isPageVisible={isPageVisible}
                   fontSize={terminalFontSize}
                   fontFamily={terminalFontFamily}
                   backgroundImage={terminalBackgroundImage}
@@ -406,6 +430,8 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
               {tabs[1] ? (
                 <XTermInstance
                   sessionId={tabs[1].id}
+                  isActive={true}
+                  isPageVisible={isPageVisible}
                   fontSize={terminalFontSize}
                   fontFamily={terminalFontFamily}
                   backgroundImage={terminalBackgroundImage}
@@ -425,9 +451,11 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   );
 };
 
-// Independent Xterm component per session with real-time font and command runner
+// Independent Xterm component per session with real-time font, safe refit on tab switch & focus restoration
 const XTermInstance: React.FC<{
   sessionId: string;
+  isActive?: boolean;
+  isPageVisible?: boolean;
   initialCommand?: string | null;
   onCommandExecuted?: () => void;
   fontSize?: number;
@@ -437,6 +465,8 @@ const XTermInstance: React.FC<{
   backgroundBlur?: number;
 }> = ({
   sessionId,
+  isActive = true,
+  isPageVisible = true,
   initialCommand,
   onCommandExecuted,
   fontSize = 13,
@@ -449,6 +479,41 @@ const XTermInstance: React.FC<{
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const isActiveRef = useRef<boolean>(isActive);
+  const isPageVisibleRef = useRef<boolean>(isPageVisible);
+
+  useEffect(() => {
+    isActiveRef.current = isActive;
+    isPageVisibleRef.current = isPageVisible;
+  }, [isActive, isPageVisible]);
+
+  // Safe refit & focus
+  const doRefitAndFocus = () => {
+    if (!containerRef.current || !xtermRef.current || !fitAddonRef.current) return;
+    if (containerRef.current.clientWidth < 50 || containerRef.current.clientHeight < 50) return;
+
+    try {
+      fitAddonRef.current.fit();
+      const term = xtermRef.current;
+      if (term.cols > 0 && term.rows > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      }
+      term.refresh(0, term.rows - 1);
+      term.focus();
+    } catch { }
+  };
+
+  // Re-fit and focus whenever this tab or terminal page becomes active/visible
+  useEffect(() => {
+    if (isActive && isPageVisible) {
+      const t1 = setTimeout(doRefitAndFocus, 50);
+      const t2 = setTimeout(doRefitAndFocus, 180);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }
+  }, [isActive, isPageVisible]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -478,7 +543,9 @@ const XTermInstance: React.FC<{
     term.loadAddon(fitAddon);
 
     term.open(containerRef.current);
-    fitAddon.fit();
+    if (containerRef.current.clientWidth >= 50 && containerRef.current.clientHeight >= 50) {
+      try { fitAddon.fit(); } catch { }
+    }
 
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -489,7 +556,9 @@ const XTermInstance: React.FC<{
     wsRef.current = ws;
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      if (term.cols > 0 && term.rows > 0) {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      }
 
       // If initialCommand is provided (e.g. from AI CLI Assistant), send it!
       if (initialCommand) {
@@ -521,9 +590,13 @@ const XTermInstance: React.FC<{
     });
 
     const resizeObserver = new ResizeObserver(() => {
+      if (!isActiveRef.current || !isPageVisibleRef.current) return;
+      if (!containerRef.current || containerRef.current.clientWidth < 50 || containerRef.current.clientHeight < 50) {
+        return;
+      }
       try {
         fitAddon.fit();
-        if (ws.readyState === WebSocket.OPEN) {
+        if (term.cols > 0 && term.rows > 0 && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
         }
       } catch { }
@@ -542,12 +615,15 @@ const XTermInstance: React.FC<{
     if (xtermRef.current) {
       xtermRef.current.options.fontSize = fontSize;
       xtermRef.current.options.fontFamily = fontFamily;
-      fitAddonRef.current?.fit();
+      doRefitAndFocus();
     }
   }, [fontSize, fontFamily]);
 
   return (
-    <div className="relative w-full h-full bg-[#060911] overflow-hidden">
+    <div
+      onClick={() => xtermRef.current?.focus()}
+      className="relative w-full h-full bg-[#060911] overflow-hidden cursor-text"
+    >
       {backgroundImage && (
         <div
           className="absolute inset-0 pointer-events-none bg-cover bg-center transition-all duration-300"

@@ -14,6 +14,7 @@ import { ToolsPage, ToolType } from './pages/ToolsPage';
 import { DevOpsPage } from './pages/DevOpsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SetupPage } from './pages/SetupPage';
+import { GuidePage } from './pages/GuidePage';
 
 import {
   ProjectItem,
@@ -64,6 +65,7 @@ export const App: React.FC = () => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [pendingSshProfileId, setPendingSshProfileId] = useState<string | null>(null);
   const [pendingRunCommand, setPendingRunCommand] = useState<string | null>(null);
+  const [pendingTerminalCwd, setPendingTerminalCwd] = useState<string | null>(null);
 
   const activeAiProvider = useMemo(() => {
     return aiProviders.find((p) => p.isDefault) || aiProviders[0] || null;
@@ -205,6 +207,11 @@ export const App: React.FC = () => {
         e.preventDefault();
         setCurrentRoute('settings');
       }
+      // F1 -> User Guide / Handbook
+      else if (e.key === 'F1') {
+        e.preventDefault();
+        setCurrentRoute('guide');
+      }
       // Number shortcuts Ctrl + 1, 2, 3, 4, 5, 6
       else if (e.ctrlKey && !e.shiftKey && !e.altKey) {
         if (e.key === '1') { e.preventDefault(); setCurrentRoute('home'); }
@@ -241,7 +248,7 @@ export const App: React.FC = () => {
         if (cmd.payload?.action === 'open') {
           api.openExplorer(p.path);
         } else if (cmd.payload?.action === 'terminal') {
-          setCurrentRoute('terminal');
+          handleOpenTerminalForPath(p.path);
         } else if (cmd.payload?.action === 'git') {
           setActiveRepoPath(p.path);
           setCurrentRoute('git');
@@ -262,8 +269,15 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleOpenTerminalForProject = (_p: ProjectItem) => {
+  const handleOpenTerminalForPath = (path?: string) => {
+    if (path) {
+      setPendingTerminalCwd(path);
+    }
     setCurrentRoute('terminal');
+  };
+
+  const handleOpenTerminalForProject = (p: ProjectItem) => {
+    handleOpenTerminalForPath(p.path);
   };
 
   const handleOpenGitForProject = (p: ProjectItem) => {
@@ -302,6 +316,7 @@ export const App: React.FC = () => {
           setIsCommandPaletteOpen(true);
         }}
         onOpenAiHub={() => setCurrentRoute('ai')}
+        onOpenGuide={() => setCurrentRoute('guide')}
       />
 
       {/* Main App Layout */}
@@ -350,6 +365,7 @@ export const App: React.FC = () => {
               activeRepoPath={activeRepoPath}
               onSelectRepoPath={setActiveRepoPath}
               onRefreshProjects={refreshProjects}
+              onOpenTerminal={handleOpenTerminalForPath}
               onShowToast={showToast}
             />
           </div>
@@ -387,6 +403,9 @@ export const App: React.FC = () => {
               onClearPendingSsh={() => setPendingSshProfileId(null)}
               pendingRunCommand={pendingRunCommand}
               onClearPendingRunCommand={() => setPendingRunCommand(null)}
+              pendingCwd={pendingTerminalCwd}
+              onClearPendingCwd={() => setPendingTerminalCwd(null)}
+              isPageVisible={currentRoute === 'terminal'}
               terminalFontSize={settings.terminalFontSize}
               terminalFontFamily={settings.terminalFontFamily}
               terminalBackgroundImage={settings.terminalBackgroundImage}
@@ -423,6 +442,10 @@ export const App: React.FC = () => {
               onShowToast={showToast}
               onOpenSetupWizard={() => setIsSetupOpen(true)}
             />
+          )}
+
+          {currentRoute === 'guide' && (
+            <GuidePage onShowToast={showToast} />
           )}
         </main>
       </div>

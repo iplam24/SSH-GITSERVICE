@@ -9,11 +9,12 @@ import {
   Wrench,
   Sliders,
   Settings,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 
-export type NavRoute = 'home' | 'projects' | 'git' | 'ai' | 'ssh' | 'terminal' | 'tools' | 'devops' | 'settings';
+export type NavRoute = 'home' | 'projects' | 'git' | 'ai' | 'ssh' | 'terminal' | 'tools' | 'devops' | 'settings' | 'guide';
 
 interface SidebarProps {
   currentRoute: NavRoute;
@@ -46,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const systemNav = [
     { route: 'settings' as NavRoute, label: 'Cài đặt', icon: Settings, shortcut: 'Ctrl+,' },
+    { route: 'guide' as NavRoute, label: 'Hướng dẫn sử dụng', icon: BookOpen, shortcut: 'F1' },
   ];
 
   const renderNavGroup = (items: typeof mainNav) => (

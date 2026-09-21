@@ -36,8 +36,10 @@ if (-not (Test-Path $distDir)) {
 dotnet publish src/DevDock.App/DevDock.App.csproj -c Release -r win-x64 --self-contained false -o $distDir
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish DevDock.App failed." }
 
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
 # 3. Create payload.zip for installer
-Write-Host "`n[3/5] Compressing payload archive for standalone installer..." -ForegroundColor Yellow
+Write-Host "`n[3/6] Compressing payload archive for standalone installer..." -ForegroundColor Yellow
 $resDir = Join-Path $root "src\DevDock.Installer\Resources"
 if (-not (Test-Path $resDir)) {
     New-Item -ItemType Directory -Path $resDir -Force | Out-Null
@@ -48,12 +50,12 @@ if (Test-Path $payloadZip) {
     Remove-Item $payloadZip -Force
 }
 
-Compress-Archive -Path "$distDir\*" -DestinationPath $payloadZip -CompressionLevel Optimal
+[System.IO.Compression.ZipFile]::CreateFromDirectory($distDir, $payloadZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 $payloadSizeMb = [math]::Round(((Get-Item $payloadZip).Length / 1MB), 2)
 Write-Host "Payload archive created: $payloadZip ($payloadSizeMb MB)" -ForegroundColor Green
 
 # 4. Publish DevDock.Installer as standalone single-file setup-devdock.exe
-Write-Host "`n[4/5] Compiling standalone setup-devdock.exe..." -ForegroundColor Yellow
+Write-Host "`n[4/6] Compiling standalone setup-devdock.exe..." -ForegroundColor Yellow
 $tempInstallerOut = Join-Path $root "dist\temp_installer"
 if (Test-Path $tempInstallerOut) {
     Remove-Item $tempInstallerOut -Recurse -Force
@@ -77,8 +79,28 @@ if (Test-Path $finalInstaller) {
 Copy-Item (Join-Path $tempInstallerOut "setup-devdock.exe") $finalInstaller -Force
 Remove-Item $tempInstallerOut -Recurse -Force
 
-# 5. Summary & Verification
-Write-Host "`n[5/5] Verifying Artifacts..." -ForegroundColor Yellow
+# 5. Create Portable Zip
+Write-Host "`n[5/6] Creating Portable Zip archive..." -ForegroundColor Yellow
+$portableZip = Join-Path $root "dist\DevDock-portable-win-x64.zip"
+if (Test-Path $portableZip) {
+    Remove-Item $portableZip -Force
+}
+[System.IO.Compression.ZipFile]::CreateFromDirectory($distDir, $portableZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+$zipSizeMb = [math]::Round(((Get-Item $portableZip).Length / 1MB), 2)
+Write-Host "Portable archive created: $portableZip ($zipSizeMb MB)" -ForegroundColor Green
+
+# 6. Generate Checksums & Summary
+Write-Host "`n[6/6] Generating SHA-256 Checksums & Verifying..." -ForegroundColor Yellow
+$checksumFile = Join-Path $root "dist\checksums.txt"
+$hashInstaller = (Get-FileHash -Path $finalInstaller -Algorithm SHA256).Hash
+$hashZip = (Get-FileHash -Path $portableZip -Algorithm SHA256).Hash
+
+@"
+SHA-256 Checksums for DevDock Workstation:
+$hashInstaller  setup-devdock.exe
+$hashZip  DevDock-portable-win-x64.zip
+"@ | Out-File -FilePath $checksumFile -Encoding utf8
+
 $installerItem = Get-Item $finalInstaller
 $installerSizeMb = [math]::Round(($installerItem.Length / 1MB), 2)
 
@@ -90,5 +112,7 @@ Write-Host "  BUILD SUCCESSFUL! 🎉" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Green
 Write-Host "Portable App:    $distDir\DevDock.App.exe" -ForegroundColor White
 Write-Host "Setup Installer: $finalInstaller ($installerSizeMb MB)" -ForegroundColor White
+Write-Host "Portable Zip:    $portableZip ($zipSizeMb MB)" -ForegroundColor White
+Write-Host "Checksums:       $checksumFile" -ForegroundColor White
 Write-Host "Embedded Icon:   $($icon.Width)x$($icon.Height) pixels" -ForegroundColor White
-Write-Host "Ready for distribution!" -ForegroundColor Cyan
+Write-Host "Ready for GitHub Release!" -ForegroundColor Cyan

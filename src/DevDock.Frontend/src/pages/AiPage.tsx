@@ -1478,6 +1478,7 @@ Quy ước trả lời:
             activeWorkspace={activeWorkspace}
             activeProvider={activeProvider}
             selectedModel={selectedModel}
+            isVisible={viewMode === 'cli'}
             onRunCommandInTerminal={onRunCommandInTerminal}
             onShowToast={onShowToast}
           />
@@ -1696,6 +1697,7 @@ interface DevDockAiCliTerminalProps {
   activeWorkspace: AiWorkspaceProject;
   activeProvider: AiProviderConfig | null;
   selectedModel: string;
+  isVisible?: boolean;
   onRunCommandInTerminal?: (cmd: string) => void;
   onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
@@ -1704,6 +1706,7 @@ const DevDockAiCliTerminal: React.FC<DevDockAiCliTerminalProps> = ({
   activeWorkspace,
   activeProvider,
   selectedModel,
+  isVisible = true,
   onRunCommandInTerminal,
   onShowToast,
 }) => {
@@ -1720,6 +1723,7 @@ const DevDockAiCliTerminal: React.FC<DevDockAiCliTerminalProps> = ({
   const historyRef = useRef<string[]>([]);
   const histIdxRef = useRef<number>(-1);
   const isProcessingRef = useRef<boolean>(false);
+  const bannerDrawnRef = useRef<boolean>(false);
 
   useEffect(() => {
     historyRef.current = history;
@@ -1736,38 +1740,65 @@ const DevDockAiCliTerminal: React.FC<DevDockAiCliTerminalProps> = ({
   // Print ANSI banner into xterm
   const printBanner = (term: XTerm) => {
     term.reset();
-    const cyan = '\x1b[38;2;6;182;212m';
-    const emerald = '\x1b[38;2;16;185;129m';
+    const c1 = '\x1b[38;2;52;211;153m'; // emerald light
+    const c2 = '\x1b[38;2;16;185;129m'; // emerald
+    const c3 = '\x1b[38;2;20;184;166m'; // teal
+    const c4 = '\x1b[38;2;6;182;212m';  // cyan
+    const c5 = '\x1b[38;2;59;130;246m'; // blue
+    const c6 = '\x1b[38;2;99;102;241m'; // indigo
+    const white = '\x1b[38;2;248;250;252m';
     const yellow = '\x1b[38;2;251;191;36m';
     const gray = '\x1b[38;2;148;163;184m';
+    const border = '\x1b[38;2;51;65;85m'; // slate-700
     const reset = '\x1b[0m';
     const bold = '\x1b[1m';
 
-    term.writeln(`${cyan}${bold}`);
-    term.writeln('  ██████╗ ███████╗██╗   ██╗██████╗  ██████╗  ██████╗██╗  ██╗');
-    term.writeln('  ██╔══██╗██╔════╝██║   ██║██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝');
-    term.writeln('  ██║  ██║█████╗  ██║   ██║██║  ██║██║   ██║██║     █████═╝ ');
-    term.writeln('  ██║  ██║██╔══╝  ╚██╗ ██╔╝██║  ██║██║   ██║██║     ██╔═██╗ ');
-    term.writeln('  ██████╔╝███████╗ ╚████╔╝ ██████╔╝╚██████╔╝╚██████╗██║  ██╗');
-    term.writeln('  ╚═════╝ ╚══════╝  ╚═══╝  ╚═════╝  ╚═════╝  ╚═════╝╚═╝  ╚═╝');
-    term.writeln(`${reset}`);
-    term.writeln(`  ${emerald}${bold}DevDock AI Agent v2.5${reset} — Interactive Terminal Workspace`);
-    term.writeln(
-      `  ${gray}Provider:${reset} ${yellow}${activeProvider?.name || 'Chưa cấu hình'}${reset} (${
-        selectedModel || activeProvider?.defaultModel || 'N/A'
-      }) • ${gray}Folder:${reset} ${cyan}${activeWorkspace?.folderPath || 'N/A'}${reset}`
-    );
-    term.writeln(
-      `  ${gray}Gõ ${emerald}/help${gray} để xem danh sách lệnh. Bạn có thể bấm vào terminal và GÕ TRỰC TIẾP.${reset}\r\n`
-    );
-    term.write(`${cyan}${bold}devdock (${activeWorkspace?.name || 'main'}) > ${reset}`);
+    term.writeln(`${border}┌─────────────────────────────────────────────────────────────────────────────┐${reset}`);
+    term.writeln(`${border}│${reset}  ${c1}${bold}██████╗ ███████╗██╗   ██╗██████╗  ██████╗  ██████╗██╗  ██╗${reset}                 ${border}│${reset}`);
+    term.writeln(`${border}│${reset}  ${c2}${bold}██╔══██╗██╔════╝██║   ██║██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝${reset}                 ${border}│${reset}`);
+    term.writeln(`${border}│${reset}  ${c3}${bold}██║  ██║█████╗  ██║   ██║██║  ██║██║   ██║██║     █████═╝ ${reset}                 ${border}│${reset}`);
+    term.writeln(`${border}│${reset}  ${c4}${bold}██║  ██║██╔══╝  ╚██╗ ██╔╝██║  ██║██║   ██║██║     ██╔═██╗ ${reset}                 ${border}│${reset}`);
+    term.writeln(`${border}│${reset}  ${c5}${bold}██████╔╝███████╗ ╚████╔╝ ██████╔╝╚██████╔╝╚██████╗██║  ██╗${reset}                 ${border}│${reset}`);
+    term.writeln(`${border}│${reset}  ${c6}${bold}╚═════╝ ╚══════╝  ╚═══╝  ╚═════╝  ╚═════╝  ╚═════╝╚═╝  ╚═╝${reset}                 ${border}│${reset}`);
+    term.writeln(`${border}│${reset}                                                                             ${border}│${reset}`);
+    term.writeln(`${border}│${reset}  ${c4}${bold}⚡ DEVDOCK AI INTERACTIVE CLI AGENT${reset} ${gray}• WORKSTATION TERMINAL COPILOT${reset}     ${border}│${reset}`);
+    term.writeln(`${border}└─────────────────────────────────────────────────────────────────────────────┘${reset}`);
+    term.writeln(`  ${c4}📂 Dự án   :${reset} ${white}${bold}${activeWorkspace?.name || 'DevDock'}${reset} ${gray}(${activeWorkspace?.folderPath || 'N/A'})${reset}`);
+    term.writeln(`  ${c2}🤖 Mô hình :${reset} ${yellow}${activeProvider?.name || 'Chưa cấu hình'}${reset} ${gray}• ${selectedModel || activeProvider?.defaultModel || 'N/A'}${reset}`);
+    term.writeln(`  ${c3}💡 Lệnh tắt:${reset} ${c4}/plan${reset}${gray}, ${reset}${c4}/commit${reset}${gray}, ${reset}${c4}/explain${reset}${gray}, ${reset}${c4}/git <lệnh>${reset}${gray}, ${reset}${c4}/help${reset}${gray}, ${reset}${c4}/clear${reset} ${gray}hoặc chat trực tiếp!${reset}\r\n`);
+    term.write(`${c4}${bold}devdock (${activeWorkspace?.name || 'main'}) > ${reset}`);
     currentLineRef.current = '';
     setCliInput('');
   };
 
+  const doFit = () => {
+    if (!containerRef.current || !xtermRef.current || !fitAddonRef.current) return;
+    if (containerRef.current.clientWidth < 50 || containerRef.current.clientHeight < 50) return;
+    try {
+      fitAddonRef.current.fit();
+      const term = xtermRef.current;
+      if (term.cols >= 40 && !bannerDrawnRef.current) {
+        printBanner(term);
+        bannerDrawnRef.current = true;
+      }
+    } catch { }
+  };
+
+  useEffect(() => {
+    if (isVisible) {
+      const t1 = setTimeout(doFit, 60);
+      const t2 = setTimeout(doFit, 200);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }
+  }, [isVisible]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
+    bannerDrawnRef.current = false;
     const term = new XTerm({
       cursorBlink: true,
       fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
@@ -1784,12 +1815,24 @@ const DevDockAiCliTerminal: React.FC<DevDockAiCliTerminalProps> = ({
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(containerRef.current);
-    fitAddon.fit();
 
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    printBanner(term);
+    if (containerRef.current.clientWidth >= 50 && containerRef.current.clientHeight >= 50) {
+      try {
+        fitAddon.fit();
+        if (term.cols >= 40) {
+          printBanner(term);
+          bannerDrawnRef.current = true;
+        }
+      } catch { }
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      doFit();
+    });
+    resizeObserver.observe(containerRef.current);
 
     // Register interactive onData listener so user can type DIRECTLY into xterm
     const onDataDisposable = term.onData((data) => {
@@ -1864,12 +1907,13 @@ const DevDockAiCliTerminal: React.FC<DevDockAiCliTerminalProps> = ({
     });
 
     const handleResize = () => {
-      fitAddon.fit();
+      doFit();
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
       onDataDisposable.dispose();
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       term.dispose();
     };
@@ -1972,6 +2016,7 @@ const DevDockAiCliTerminal: React.FC<DevDockAiCliTerminalProps> = ({
 
     // Handle Built-in Slash Commands
     if (cmd === '/clear') {
+      doFit();
       printBanner(term);
       return;
     }

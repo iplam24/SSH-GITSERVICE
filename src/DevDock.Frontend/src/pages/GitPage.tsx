@@ -48,6 +48,7 @@ import {
   Star,
   Folder,
   FolderOpen,
+  Terminal,
   WrapText,
   Eye,
   Filter,
@@ -84,6 +85,7 @@ interface GitPageProps {
   activeRepoPath: string;
   onSelectRepoPath: (path: string) => void;
   onRefreshProjects?: () => void;
+  onOpenTerminal?: (path: string) => void;
   onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
@@ -94,6 +96,7 @@ export const GitPage: React.FC<GitPageProps> = ({
   activeRepoPath,
   onSelectRepoPath,
   onRefreshProjects,
+  onOpenTerminal,
   onShowToast,
 }) => {
   const [activeTab, setActiveTab] = useState<GitTab>('changes');
@@ -1376,6 +1379,18 @@ export const GitPage: React.FC<GitPageProps> = ({
               <Shield className="w-3.5 h-3.5 text-amber-400" />
               <span>.gitignore</span>
             </button>
+
+            {activeRepoPath && onOpenTerminal && (
+              <button
+                type="button"
+                onClick={() => onOpenTerminal(activeRepoPath)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] text-emerald-300 border border-emerald-500/30 text-xs font-medium cursor-pointer transition-colors"
+                title={`Mở Terminal tại thư mục "${activeRepoPath}"`}
+              >
+                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Terminal</span>
+              </button>
+            )}
           </div>
 
           {repoStatus && (
