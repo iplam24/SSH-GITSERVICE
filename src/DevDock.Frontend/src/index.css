@@ -83,7 +83,11 @@
   * {
     border-color: #1e2230;
   }
-  html, body {
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
     overscroll-behavior: none;
     background-color: #0c0d12;
     color: #f1f5f9;

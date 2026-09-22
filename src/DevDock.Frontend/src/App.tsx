@@ -350,7 +350,7 @@ export const App: React.FC = () => {
   return (
     <LanguageProvider>
     <ConfirmProvider>
-      <div className="h-screen w-screen flex flex-col bg-[#0c0d12] text-slate-100 overflow-hidden select-none font-sans">
+      <div className="h-full w-full flex flex-col bg-[#0c0d12] text-slate-100 overflow-hidden select-none font-sans">
       {/* Windows 11 Fluent Title Bar */}
       <TitleBar
         metrics={metrics}
