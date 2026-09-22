@@ -62,17 +62,50 @@ public class SystemMetricsService : ISystemMetricsService
             metrics.RamUsagePercent = memStatus.dwMemoryLoad;
         }
 
-        // 3. Disk
+        // 3. Disk - Detect all ready drives on the system
         try
         {
-            var systemDrive = Path.GetPathRoot(Environment.SystemDirectory);
-            var drive = DriveInfo.GetDrives().FirstOrDefault(d => d.IsReady && d.Name.StartsWith(systemDrive ?? "C", StringComparison.OrdinalIgnoreCase));
-            if (drive != null)
+            var systemDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+            var allDrives = DriveInfo.GetDrives()
+                .Where(d => d.IsReady)
+                .OrderByDescending(d => d.Name.StartsWith(systemDrive, StringComparison.OrdinalIgnoreCase))
+                .ThenBy(d => d.Name)
+                .ToList();
+
+            foreach (var d in allDrives)
             {
-                metrics.DiskTotalGb = Math.Round(drive.TotalSize / (1024.0 * 1024.0 * 1024.0), 1);
-                metrics.DiskFreeGb = Math.Round(drive.AvailableFreeSpace / (1024.0 * 1024.0 * 1024.0), 1);
-                var usedGb = metrics.DiskTotalGb - metrics.DiskFreeGb;
-                metrics.DiskUsagePercent = Math.Round((usedGb / metrics.DiskTotalGb) * 100, 1);
+                var isSys = d.Name.StartsWith(systemDrive, StringComparison.OrdinalIgnoreCase);
+                var totalGb = Math.Round(d.TotalSize / (1024.0 * 1024.0 * 1024.0), 1);
+                var freeGb = Math.Round(d.AvailableFreeSpace / (1024.0 * 1024.0 * 1024.0), 1);
+                var usedGb = Math.Round(totalGb - freeGb, 1);
+                var usagePercent = totalGb > 0 ? Math.Round((usedGb / totalGb) * 100, 1) : 0;
+
+                string volLabel = "";
+                try { volLabel = d.VolumeLabel; } catch { }
+
+                var letter = d.Name.TrimEnd('\\');
+
+                metrics.Drives.Add(new DriveMetric
+                {
+                    Name = d.Name,
+                    Letter = letter,
+                    VolumeLabel = volLabel,
+                    DriveType = d.DriveType.ToString(),
+                    TotalGb = totalGb,
+                    FreeGb = freeGb,
+                    UsedGb = usedGb,
+                    UsagePercent = usagePercent,
+                    IsSystem = isSys
+                });
+            }
+
+            // Backward compatibility fallback to primary system drive (or first ready drive)
+            var primary = metrics.Drives.FirstOrDefault(d => d.IsSystem) ?? metrics.Drives.FirstOrDefault();
+            if (primary != null)
+            {
+                metrics.DiskTotalGb = primary.TotalGb;
+                metrics.DiskFreeGb = primary.FreeGb;
+                metrics.DiskUsagePercent = primary.UsagePercent;
             }
         }
         catch { }

@@ -72,6 +72,21 @@ public partial class MainWindow : Window
         }
         catch { }
         Closing += OnClosing;
+        StateChanged += OnWindowStateChanged;
+    }
+
+    private void OnWindowStateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            // When maximized with WindowChrome, Windows expands the window slightly beyond screen bounds to hide resize handles.
+            // A 7px margin keeps all content (especially the bottom footer) fully visible and unclipped.
+            RootGrid.Margin = new Thickness(7);
+        }
+        else
+        {
+            RootGrid.Margin = new Thickness(0);
+        }
     }
 
     private static void Log(string msg)

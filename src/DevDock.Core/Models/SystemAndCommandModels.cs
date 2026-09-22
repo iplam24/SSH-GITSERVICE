@@ -1,5 +1,18 @@
 namespace DevDock.Core.Models;
 
+public class DriveMetric
+{
+    public string Name { get; set; } = string.Empty;
+    public string Letter { get; set; } = string.Empty;
+    public string VolumeLabel { get; set; } = string.Empty;
+    public string DriveType { get; set; } = string.Empty;
+    public double TotalGb { get; set; }
+    public double FreeGb { get; set; }
+    public double UsedGb { get; set; }
+    public double UsagePercent { get; set; }
+    public bool IsSystem { get; set; }
+}
+
 public class SystemMetrics
 {
     public double CpuUsagePercent { get; set; }
@@ -10,6 +23,7 @@ public class SystemMetrics
     public double DiskTotalGb { get; set; }
     public double DiskFreeGb { get; set; }
     public double DiskUsagePercent { get; set; }
+    public List<DriveMetric> Drives { get; set; } = new();
     public double NetworkSentKbps { get; set; }
     public double NetworkReceivedKbps { get; set; }
     public TimeSpan Uptime { get; set; }

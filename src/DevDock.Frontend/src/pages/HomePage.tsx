@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FolderGit2,
   Server,
@@ -44,6 +44,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   onConnectSsh,
   onRunProjectDev,
 }) => {
+  const [selectedDriveIndex, setSelectedDriveIndex] = useState(0);
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Chào buổi sáng';
@@ -99,8 +101,22 @@ export const HomePage: React.FC<HomePageProps> = ({
         const ram = metrics?.ramUsagePercent ?? (metrics as any)?.RamUsagePercent ?? 0;
         const usedRam = metrics?.usedRamMb ?? (metrics as any)?.UsedRamMb ?? 0;
         const totalRam = metrics?.totalRamMb ?? (metrics as any)?.TotalRamMb ?? 0;
-        const diskUsage = metrics?.diskUsagePercent ?? (metrics as any)?.DiskUsagePercent ?? 0;
-        const diskFree = metrics?.diskFreeGb ?? (metrics as any)?.DiskFreeGb ?? 0;
+        const drives = (metrics.drives && metrics.drives.length > 0)
+          ? metrics.drives
+          : [
+              {
+                name: 'C:\\',
+                letter: 'C:',
+                volumeLabel: 'OS',
+                driveType: 'Fixed',
+                totalGb: metrics?.diskTotalGb ?? (metrics as any)?.DiskTotalGb ?? 0,
+                freeGb: metrics?.diskFreeGb ?? (metrics as any)?.DiskFreeGb ?? 0,
+                usedGb: ((metrics?.diskTotalGb ?? (metrics as any)?.DiskTotalGb ?? 0) - (metrics?.diskFreeGb ?? (metrics as any)?.DiskFreeGb ?? 0)),
+                usagePercent: metrics?.diskUsagePercent ?? (metrics as any)?.DiskUsagePercent ?? 0,
+                isSystem: true
+              }
+            ];
+        const activeDrive = drives[Math.min(selectedDriveIndex, drives.length - 1)] || drives[0];
         const netRecv = metrics?.networkReceivedKbps ?? (metrics as any)?.NetworkReceivedKbps ?? 0;
         const netSent = metrics?.networkSentKbps ?? (metrics as any)?.NetworkSentKbps ?? 0;
 
@@ -148,26 +164,112 @@ export const HomePage: React.FC<HomePageProps> = ({
               </div>
             </div>
 
-            {/* Disk Card */}
+            {/* Disk Card — Multi-drive support (C:, D:, etc.) */}
             <div className="bg-[#12151f] border border-[#1b202e] hover:border-[#283046] rounded-lg p-3.5 flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-medium">Ổ đĩa hệ thống</span>
-                <HardDrive className="w-4 h-4 text-amber-500/80" />
+              <div className="flex items-center justify-between text-slate-400 text-xs gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-medium truncate">
+                    Ổ {activeDrive.letter} {activeDrive.volumeLabel ? `(${activeDrive.volumeLabel})` : ''}
+                  </span>
+                  {activeDrive.isSystem && (
+                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+                      OS
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {drives.length > 1 && (
+                    <div className="flex items-center gap-0.5 bg-[#0e1017] p-0.5 rounded border border-[#1e2332]">
+                      {drives.map((d, idx) => (
+                        <button
+                          key={d.letter}
+                          type="button"
+                          onClick={() => setSelectedDriveIndex(idx)}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                            selectedDriveIndex === idx
+                              ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                          }`}
+                          title={`Ổ ${d.letter} (${d.volumeLabel || (d.isSystem ? 'Hệ thống' : 'Dữ liệu')}) • ${d.freeGb} GB trống / ${d.totalGb} GB`}
+                        >
+                          {d.letter}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <HardDrive className="w-4 h-4 text-amber-500/80 shrink-0 ml-0.5" />
+                </div>
               </div>
-              <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-xl font-bold font-mono text-slate-100">
-                  {diskUsage.toFixed(0)}%
-                </span>
-                <span className="text-[11px] text-slate-500 font-mono">
-                  {diskFree.toFixed(0)} GB trống
+
+              <div className="mt-2.5 flex items-baseline justify-between gap-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-bold font-mono text-slate-100">
+                    {activeDrive.usagePercent.toFixed(0)}%
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {activeDrive.freeGb.toFixed(0)} GB trống
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {activeDrive.totalGb.toFixed(0)} GB
                 </span>
               </div>
-              <div className="w-full bg-[#181d2a] h-1.5 rounded-full mt-3 overflow-hidden">
+
+              <div className="w-full bg-[#181d2a] h-1.5 rounded-full mt-2.5 overflow-hidden">
                 <div
-                  className="h-full bg-amber-500/90 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(diskUsage, 100)}%` }}
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    activeDrive.usagePercent > 90
+                      ? 'bg-rose-500'
+                      : activeDrive.usagePercent > 75
+                      ? 'bg-amber-500/90'
+                      : 'bg-emerald-500/90'
+                  }`}
+                  style={{ width: `${Math.min(activeDrive.usagePercent, 100)}%` }}
                 />
               </div>
+
+              {/* Multi-drive overview bars if more than 1 drive */}
+              {drives.length > 1 && (
+                <div className="mt-2.5 pt-2 border-t border-[#1a1f2c] flex flex-col gap-1.5">
+                  {drives.map((d, idx) => {
+                    const isCur = selectedDriveIndex === idx;
+                    return (
+                      <div
+                        key={d.letter}
+                        onClick={() => setSelectedDriveIndex(idx)}
+                        className={`flex items-center justify-between text-[10px] font-mono px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                          isCur ? 'bg-white/[0.06] text-amber-300' : 'text-slate-400 hover:bg-white/[0.03] hover:text-slate-200'
+                        }`}
+                        title={`Ổ ${d.letter} (${d.volumeLabel || (d.isSystem ? 'Hệ thống' : 'Dữ liệu')}): ${d.freeGb} GB trống / ${d.totalGb} GB (${d.usagePercent}%)`}
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="font-bold">{d.letter}</span>
+                          <span className="text-slate-500 truncate text-[9px]">
+                            {d.volumeLabel || (d.isSystem ? 'OS' : 'Data')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="w-12 sm:w-14 bg-[#181d2a] h-1 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                d.usagePercent > 90
+                                  ? 'bg-rose-500'
+                                  : d.usagePercent > 75
+                                  ? 'bg-amber-500'
+                                  : 'bg-emerald-500'
+                              }`}
+                              style={{ width: `${Math.min(d.usagePercent, 100)}%` }}
+                            />
+                          </div>
+                          <span className="w-7 text-right text-[10px]">
+                            {d.usagePercent.toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Network / Activity */}

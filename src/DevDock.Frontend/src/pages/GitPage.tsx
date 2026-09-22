@@ -1499,9 +1499,16 @@ export const GitPage: React.FC<GitPageProps> = ({
     : 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12] w-full h-full min-h-0">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0d12] w-full min-h-0">
       {/* Top Bar: Repo selector, Current Branch, Quick Push/Pull/Fetch */}
-      <div className="h-11 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0 gap-2 overflow-x-auto select-none no-scrollbar">
+      <div
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY;
+          }
+        }}
+        className="h-11 border-b border-[#1a1e2a] bg-[#0e1017] px-3 flex items-center justify-between flex-shrink-0 gap-2 overflow-x-auto select-none scrollbar-thin hover:scrollbar-thumb-slate-600"
+      >
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <FolderGit2 className="w-4 h-4 text-slate-400 shrink-0" />
           <select
@@ -1661,7 +1668,14 @@ export const GitPage: React.FC<GitPageProps> = ({
       </div>
 
       {/* Sub-Tabs Navigation Bar */}
-      <div className="h-9 border-b border-[#1a1e2a] bg-[#0a0c10] px-3 flex items-center justify-between flex-shrink-0 gap-2 overflow-x-auto select-none no-scrollbar">
+      <div
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY;
+          }
+        }}
+        className="h-9 border-b border-[#1a1e2a] bg-[#0a0c10] px-3 flex items-center justify-between flex-shrink-0 gap-2 overflow-x-auto select-none scrollbar-thin hover:scrollbar-thumb-slate-600"
+      >
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"

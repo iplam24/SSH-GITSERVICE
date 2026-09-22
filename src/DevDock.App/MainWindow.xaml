@@ -21,7 +21,7 @@
             GlassFrameThickness="0" />
     </WindowChrome.WindowChrome>
 
-    <Grid Background="#0B0F17">
+    <Grid x:Name="RootGrid" Background="#0B0F17">
         <wv2:WebView2 x:Name="WebViewControl" DefaultBackgroundColor="#0B0F17" />
     </Grid>
 </Window>

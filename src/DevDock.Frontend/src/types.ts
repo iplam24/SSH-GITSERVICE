@@ -465,6 +465,18 @@ export interface GitGlobalConfig {
   gitVersion: string;
 }
 
+export interface DriveMetric {
+  name: string;
+  letter: string;
+  volumeLabel: string;
+  driveType: string;
+  totalGb: number;
+  freeGb: number;
+  usedGb: number;
+  usagePercent: number;
+  isSystem: boolean;
+}
+
 export interface SystemMetrics {
   cpuUsagePercent: number;
   totalRamMb: number;
@@ -474,6 +486,7 @@ export interface SystemMetrics {
   diskTotalGb: number;
   diskFreeGb: number;
   diskUsagePercent: number;
+  drives?: DriveMetric[];
   networkSentKbps: number;
   networkReceivedKbps: number;
   uptime: string;

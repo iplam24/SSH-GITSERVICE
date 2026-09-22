@@ -105,25 +105,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`bg-[#0a0c10] border-r border-[#1a1e2a] flex flex-col justify-between transition-all duration-200 select-none flex-shrink-0 ${
+      className={`bg-[#0a0c10] border-r border-[#1a1e2a] flex flex-col justify-between transition-all duration-200 select-none flex-shrink-0 h-full min-h-0 overflow-hidden ${
         collapsed ? 'w-14' : 'w-52'
       }`}
     >
-      {/* Navigation Sections */}
-      <div className="flex-1 overflow-y-auto min-h-0 py-2.5 px-2 flex flex-col gap-2.5">
+      {/* Navigation Sections — scrollable if screen is small or zoomed in */}
+      <div className="flex-1 overflow-y-auto min-h-0 py-2 px-2 flex flex-col gap-2 scrollbar-thin">
         {renderNavGroup(mainNav)}
 
-        <div className="h-[1px] bg-[#1a1e2a] mx-1" />
+        <div className="h-[1px] bg-[#1a1e2a] mx-1 shrink-0" />
 
         {renderNavGroup(toolsNav)}
 
-        <div className="h-[1px] bg-[#1a1e2a] mx-1" />
+        <div className="h-[1px] bg-[#1a1e2a] mx-1 shrink-0" />
 
         {renderNavGroup(systemNav)}
       </div>
 
-      {/* Footer / App Logo, Version & Author & Collapse Button */}
-      <div className="p-2 border-t border-[#1a1e2a] flex items-center justify-between gap-1">
+      {/* Footer / App Logo, Version & Author & Collapse Button — permanently pinned to bottom */}
+      <div className="p-2 border-t border-[#1a1e2a] flex items-center justify-between gap-1 shrink-0 bg-[#0a0c10] z-20">
         {!collapsed ? (
           <button
             type="button"

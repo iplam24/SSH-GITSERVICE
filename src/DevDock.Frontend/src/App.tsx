@@ -366,7 +366,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main App Layout */}
-      <div className="flex-1 flex overflow-hidden min-h-0 h-full">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Sidebar */}
         <Sidebar
           currentRoute={currentRoute}
@@ -377,7 +377,7 @@ export const App: React.FC = () => {
         />
 
         {/* Dynamic Route Viewport */}
-        <main className="flex-1 flex flex-col overflow-hidden relative bg-[#0c0d12] min-h-0 h-full w-full">
+        <main className="flex-1 flex flex-col overflow-hidden relative bg-[#0c0d12] min-h-0 w-full">
           {currentRoute === 'home' && (
             <HomePage
               metrics={metrics}
@@ -403,7 +403,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          <div className={`w-full h-full min-h-0 ${currentRoute === 'git' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full flex-1 min-h-0 ${currentRoute === 'git' ? 'flex flex-col' : 'hidden'}`}>
             <GitPage
               projects={projects}
               gitAccounts={gitAccounts}
@@ -416,7 +416,7 @@ export const App: React.FC = () => {
             />
           </div>
 
-          <div className={`w-full h-full min-h-0 ${currentRoute === 'ai' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full flex-1 min-h-0 ${currentRoute === 'ai' ? 'flex flex-col' : 'hidden'}`}>
             <AiPage
               providers={aiProviders}
               activeProvider={activeAiProvider}
@@ -433,7 +433,7 @@ export const App: React.FC = () => {
             />
           </div>
 
-          <div className={`w-full h-full min-h-0 ${currentRoute === 'ssh' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full flex-1 min-h-0 ${currentRoute === 'ssh' ? 'flex flex-col' : 'hidden'}`}>
             <SshPage
               profiles={sshProfiles}
               onRefreshProfiles={refreshSshProfiles}
@@ -442,7 +442,7 @@ export const App: React.FC = () => {
             />
           </div>
 
-          <div className={`w-full h-full min-h-0 ${currentRoute === 'terminal' ? 'flex flex-col' : 'hidden'}`}>
+          <div className={`w-full flex-1 min-h-0 ${currentRoute === 'terminal' ? 'flex flex-col' : 'hidden'}`}>
             <TerminalPage
               shells={shells}
               sshProfiles={sshProfiles}

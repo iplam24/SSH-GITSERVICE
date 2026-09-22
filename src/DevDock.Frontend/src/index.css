@@ -113,29 +113,25 @@
 }
 
 ::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(10, 12, 16, 0.4);
 }
 ::-webkit-scrollbar-thumb {
-  background: #3b4564;
+  background: #475569;
   border-radius: 9999px;
-  border: 1px solid rgba(12, 13, 18, 0.6);
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #505c84;
+  background: #64748b;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
-}
-
-/* Ensure child scroll containers isolate wheel events properly */
-[class*='overflow-y-auto'],
-[class*='overflow-auto'],
-[class*='overflow-x-auto'] {
-  overscroll-behavior: contain;
 }
 
 .no-scrollbar {
