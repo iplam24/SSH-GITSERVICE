@@ -68,6 +68,8 @@ import {
   CreateGithubReleaseRequest,
   CreateGithubReleaseResult,
   GithubReleaseItem,
+  RepoFileNode,
+  RepoFileContentResult,
 } from '../types';
 
 const API_BASE = window.location.port === '5173' ? 'http://127.0.0.1:38420' : '';
@@ -248,6 +250,18 @@ export const api = {
     }),
   getRateLimit: (accountId: string) =>
     req<GitRateLimitInfo>(`/api/git/providers/rate-limit?accountId=${encodeURIComponent(accountId)}`),
+  getCloudRepoTree: (accountId: string, repo: string, path = '', branch?: string) =>
+    req<RepoFileNode[]>(
+      `/api/git/providers/tree?accountId=${encodeURIComponent(accountId)}&repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(path)}${branch ? `&branch=${encodeURIComponent(branch)}` : ''}`
+    ),
+  getCloudFileContent: (accountId: string, repo: string, path: string, branch?: string) =>
+    req<RepoFileContentResult>(
+      `/api/git/providers/file?accountId=${encodeURIComponent(accountId)}&repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(path)}${branch ? `&branch=${encodeURIComponent(branch)}` : ''}`
+    ),
+  getLocalFsTree: (path: string) =>
+    req<RepoFileNode[]>(`/api/fs/tree?path=${encodeURIComponent(path)}`),
+  getLocalFsFile: (path: string) =>
+    req<RepoFileContentResult>(`/api/fs/file?path=${encodeURIComponent(path)}`),
   initRepo: (repoPath: string) =>
     req<{ success: boolean; output: string }>('/api/git/init', {
       method: 'POST',

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
+  Code,
   GitBranch,
   ArrowDown,
   ArrowUp,
@@ -76,6 +77,7 @@ import {
 } from '../types';
 import { api } from '../services/api';
 import { useConfirm } from '../context/ConfirmContext';
+import { CodeViewerModal } from '../components/CodeViewerModal';
 
 type GitTab = 'changes' | 'history' | 'branches' | 'tags' | 'cloud';
 
@@ -180,6 +182,37 @@ export const GitPage: React.FC<GitPageProps> = ({
   const [cloneUrl, setCloneUrl] = useState('');
   const [cloneDestPath, setCloneDestPath] = useState('');
   const [cloneProjectName, setCloneProjectName] = useState('');
+
+  // Code Viewer / Explorer Modal states
+  const [isCodeViewerOpen, setIsCodeViewerOpen] = useState(false);
+  const [codeViewerMode, setCodeViewerMode] = useState<'cloud' | 'local'>('local');
+  const [codeViewerTitle, setCodeViewerTitle] = useState('');
+  const [codeViewerCloudConfig, setCodeViewerCloudConfig] = useState<{
+    accountId: string;
+    repoFullName: string;
+    branch?: string;
+  } | undefined>(undefined);
+  const [codeViewerLocalPath, setCodeViewerLocalPath] = useState<string | undefined>(undefined);
+
+  const handleOpenCodeViewerLocal = (p: string, name?: string) => {
+    setCodeViewerMode('local');
+    setCodeViewerTitle(name || p.split(/[\\/]/).filter(Boolean).pop() || 'Thư mục cục bộ');
+    setCodeViewerLocalPath(p);
+    setCodeViewerCloudConfig(undefined);
+    setIsCodeViewerOpen(true);
+  };
+
+  const handleOpenCodeViewerCloud = (repo: RemoteRepoItem) => {
+    setCodeViewerMode('cloud');
+    setCodeViewerTitle(repo.fullName || repo.name);
+    setCodeViewerCloudConfig({
+      accountId: selectedAccountId,
+      repoFullName: repo.fullName || repo.name,
+      branch: repo.defaultBranch || 'main',
+    });
+    setCodeViewerLocalPath(undefined);
+    setIsCodeViewerOpen(true);
+  };
 
   // CI/CD GitHub Actions Setup states
   const [isCicdModalOpen, setIsCicdModalOpen] = useState(false);
@@ -1548,6 +1581,18 @@ export const GitPage: React.FC<GitPageProps> = ({
             >
               <Folder className="w-3.5 h-3.5 text-sky-400" />
               <span className="hidden md:inline">Explorer</span>
+            </button>
+          )}
+
+          {activeRepoPath && (
+            <button
+              type="button"
+              onClick={() => handleOpenCodeViewerLocal(activeRepoPath)}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-sky-300 border border-sky-500/30 text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
+              title={`Xem cây thư mục & đọc mã nguồn dự án "${activeRepoPath}"`}
+            >
+              <Code className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden md:inline">Xem Code</span>
             </button>
           )}
 
@@ -3180,9 +3225,10 @@ export const GitPage: React.FC<GitPageProps> = ({
                     </div>
 
                     <div className="pt-2.5 border-t border-[#1a1f2c] flex items-center justify-between">
-                      {/* Primary Clone action */}
-                      <button
-                        type="button"
+                      {/* Primary Clone & View Code actions */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
                         onClick={() => {
                           setCloneUrl(repo.cloneUrl);
                           setCloneProjectName(repo.name);
@@ -3195,6 +3241,17 @@ export const GitPage: React.FC<GitPageProps> = ({
                         <DownloadCloud className="w-3.5 h-3.5 text-slate-400" />
                         <span>Clone</span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCodeViewerCloud(repo)}
+                        className="px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#181d2a] text-sky-300 border border-sky-500/30 text-[11px] font-medium flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                        title="Duyệt cây thư mục và xem mã nguồn kho lưu trữ này trên GitHub"
+                      >
+                        <Code className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Xem Code</span>
+                      </button>
+                    </div>
 
                       {/* Secondary actions */}
                       <div className="flex items-center gap-1">
@@ -5293,6 +5350,17 @@ export const GitPage: React.FC<GitPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Code Viewer & Folder Explorer Modal */}
+      <CodeViewerModal
+        isOpen={isCodeViewerOpen}
+        onClose={() => setIsCodeViewerOpen(false)}
+        mode={codeViewerMode}
+        title={codeViewerTitle}
+        cloudConfig={codeViewerCloudConfig}
+        localPath={codeViewerLocalPath}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };

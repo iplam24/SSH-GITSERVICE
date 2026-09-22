@@ -937,4 +937,46 @@ public class GitGlobalConfigTests
     }
 }
 
+public class FileExplorerTests
+{
+    [Fact]
+    public void RepoFileNode_InitializesCorrectly()
+    {
+        var node = new RepoFileNode
+        {
+            Name = "App.tsx",
+            Path = "src/App.tsx",
+            IsDirectory = false,
+            Size = 1024,
+            Extension = ".tsx",
+            Type = "file"
+        };
+
+        Assert.Equal("App.tsx", node.Name);
+        Assert.False(node.IsDirectory);
+        Assert.Equal(".tsx", node.Extension);
+        Assert.Equal(1024, node.Size);
+    }
+
+    [Fact]
+    public void RepoFileContentResult_CalculatesCorrectProperties()
+    {
+        var content = "line 1\nline 2\nline 3";
+        var res = new RepoFileContentResult
+        {
+            Name = "test.txt",
+            Path = "test.txt",
+            Content = content,
+            Size = content.Length,
+            Extension = ".txt",
+            LineCount = 3
+        };
+
+        Assert.Equal(3, res.LineCount);
+        Assert.False(res.IsBinary);
+        Assert.False(res.IsImage);
+        Assert.Null(res.ErrorMessage);
+    }
+}
+
 

@@ -659,6 +659,260 @@ Thumbs.db
         };
     }
 
+    public async Task<List<RepoFileNode>> GetCloudRepoTreeAsync(
+        string accountId,
+        string repoFullName,
+        string? path = null,
+        string? branch = null)
+    {
+        var (account, token) = await GetAccountAndTokenAsync(accountId);
+        var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
+        var cleanPath = (path ?? string.Empty).Trim('/');
+
+        var encodedPath = string.IsNullOrEmpty(cleanPath)
+            ? string.Empty
+            : "/" + string.Join("/", cleanPath.Split('/').Select(Uri.EscapeDataString));
+
+        var url = $"{baseUrl}/repos/{repoFullName}/contents{encodedPath}";
+        if (!string.IsNullOrWhiteSpace(branch))
+        {
+            url += $"?ref={Uri.EscapeDataString(branch)}";
+        }
+
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+        var res = await _httpClient.SendAsync(req);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Lỗi truy cập kho GitHub ({res.StatusCode}): {err}");
+        }
+
+        var json = await res.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        var result = new List<RepoFileNode>();
+
+        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                var name = item.TryGetProperty("name", out var np) ? np.GetString() ?? string.Empty : string.Empty;
+                var itemPath = item.TryGetProperty("path", out var pp) ? pp.GetString() ?? string.Empty : string.Empty;
+                var type = item.TryGetProperty("type", out var tp) ? tp.GetString() ?? "file" : "file";
+                var isDir = type.Equals("dir", StringComparison.OrdinalIgnoreCase);
+                var size = item.TryGetProperty("size", out var sp) ? sp.GetInt64() : (long?)null;
+                var downloadUrl = item.TryGetProperty("download_url", out var dp) ? dp.GetString() : null;
+
+                result.Add(new RepoFileNode
+                {
+                    Name = name,
+                    Path = itemPath,
+                    IsDirectory = isDir,
+                    Size = size,
+                    Extension = isDir ? null : Path.GetExtension(name),
+                    DownloadUrl = downloadUrl,
+                    Type = type
+                });
+            }
+        }
+        else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            // Trả về single item nếu path trỏ tới 1 file
+            var name = doc.RootElement.TryGetProperty("name", out var np) ? np.GetString() ?? string.Empty : string.Empty;
+            var itemPath = doc.RootElement.TryGetProperty("path", out var pp) ? pp.GetString() ?? string.Empty : string.Empty;
+            var type = doc.RootElement.TryGetProperty("type", out var tp) ? tp.GetString() ?? "file" : "file";
+            var isDir = type.Equals("dir", StringComparison.OrdinalIgnoreCase);
+            var size = doc.RootElement.TryGetProperty("size", out var sp) ? sp.GetInt64() : (long?)null;
+            var downloadUrl = doc.RootElement.TryGetProperty("download_url", out var dp) ? dp.GetString() : null;
+
+            result.Add(new RepoFileNode
+            {
+                Name = name,
+                Path = itemPath,
+                IsDirectory = isDir,
+                Size = size,
+                Extension = isDir ? null : Path.GetExtension(name),
+                DownloadUrl = downloadUrl,
+                Type = type
+            });
+        }
+
+        // Sắp xếp: Thư mục lên trước theo Alphabet, sau đó đến tệp theo Alphabet
+        return result
+            .OrderByDescending(r => r.IsDirectory)
+            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public async Task<RepoFileContentResult> GetCloudFileContentAsync(
+        string accountId,
+        string repoFullName,
+        string path,
+        string? branch = null)
+    {
+        var (account, token) = await GetAccountAndTokenAsync(accountId);
+        var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
+        var cleanPath = path.Trim('/');
+
+        var encodedPath = "/" + string.Join("/", cleanPath.Split('/').Select(Uri.EscapeDataString));
+        var url = $"{baseUrl}/repos/{repoFullName}/contents{encodedPath}";
+        if (!string.IsNullOrWhiteSpace(branch))
+        {
+            url += $"?ref={Uri.EscapeDataString(branch)}";
+        }
+
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+        var res = await _httpClient.SendAsync(req);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadAsStringAsync();
+            return new RepoFileContentResult
+            {
+                Name = Path.GetFileName(cleanPath),
+                Path = cleanPath,
+                ErrorMessage = $"Lỗi tải tệp ({res.StatusCode}): {err}"
+            };
+        }
+
+        var json = await res.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        var name = root.TryGetProperty("name", out var np) ? np.GetString() ?? Path.GetFileName(cleanPath) : Path.GetFileName(cleanPath);
+        var filePath = root.TryGetProperty("path", out var pp) ? pp.GetString() ?? cleanPath : cleanPath;
+        var size = root.TryGetProperty("size", out var sp) ? sp.GetInt64() : 0;
+        var downloadUrl = root.TryGetProperty("download_url", out var dp) ? dp.GetString() : null;
+        var ext = Path.GetExtension(name).ToLowerInvariant();
+
+        // Kiểm tra xem có phải định dạng ảnh hay không
+        var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".bmp"
+        };
+
+        if (imageExts.Contains(ext))
+        {
+            string? dataUrl = null;
+            if (root.TryGetProperty("content", out var cp) && cp.GetString() is string b64Content)
+            {
+                var cleanB64 = b64Content.Replace("\n", string.Empty).Replace("\r", string.Empty);
+                var mime = ext switch
+                {
+                    ".svg" => "image/svg+xml",
+                    ".png" => "image/png",
+                    ".gif" => "image/gif",
+                    ".ico" => "image/x-icon",
+                    ".webp" => "image/webp",
+                    ".bmp" => "image/bmp",
+                    _ => "image/jpeg"
+                };
+                dataUrl = $"data:{mime};base64,{cleanB64}";
+            }
+            else if (!string.IsNullOrEmpty(downloadUrl))
+            {
+                dataUrl = downloadUrl;
+            }
+
+            return new RepoFileContentResult
+            {
+                Name = name,
+                Path = filePath,
+                Size = size,
+                Extension = ext,
+                IsImage = true,
+                DataUrl = dataUrl,
+                LineCount = 0
+            };
+        }
+
+        // Nếu file quá lớn (> 2MB)
+        if (size > 2 * 1024 * 1024)
+        {
+            return new RepoFileContentResult
+            {
+                Name = name,
+                Path = filePath,
+                Size = size,
+                Extension = ext,
+                ErrorMessage = "Tệp quá lớn (> 2MB) để hiển thị trực tiếp. Vui lòng clone hoặc tải về máy."
+            };
+        }
+
+        string textContent = string.Empty;
+        if (root.TryGetProperty("content", out var contentProp) && contentProp.GetString() is string base64)
+        {
+            try
+            {
+                var cleanBase64 = base64.Replace("\n", string.Empty).Replace("\r", string.Empty);
+                var bytes = Convert.FromBase64String(cleanBase64);
+
+                // Kiểm tra xem có byte null (\0) -> binary
+                if (bytes.Take(1024).Any(b => b == 0))
+                {
+                    return new RepoFileContentResult
+                    {
+                        Name = name,
+                        Path = filePath,
+                        Size = size,
+                        Extension = ext,
+                        IsBinary = true,
+                        ErrorMessage = "Đây là tệp nhị phân, không thể hiển thị dưới dạng văn bản."
+                    };
+                }
+
+                textContent = Encoding.UTF8.GetString(bytes);
+            }
+            catch (Exception ex)
+            {
+                return new RepoFileContentResult
+                {
+                    Name = name,
+                    Path = filePath,
+                    Size = size,
+                    Extension = ext,
+                    ErrorMessage = $"Không thể giải mã nội dung tệp: {ex.Message}"
+                };
+            }
+        }
+        else if (!string.IsNullOrEmpty(downloadUrl))
+        {
+            // Tải raw text nếu content bị null
+            var rawReq = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+            rawReq.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                rawReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+            var rawRes = await _httpClient.SendAsync(rawReq);
+            if (rawRes.IsSuccessStatusCode)
+            {
+                textContent = await rawRes.Content.ReadAsStringAsync();
+            }
+        }
+
+        var lines = textContent.Split('\n').Length;
+
+        return new RepoFileContentResult
+        {
+            Name = name,
+            Path = filePath,
+            Content = textContent,
+            Size = size,
+            Extension = ext,
+            IsBinary = false,
+            IsImage = false,
+            LineCount = lines
+        };
+    }
+
     private static async Task<(int ExitCode, string StdOut, string StdErr)> RunGitDirectAsync(string workingDir, string arguments)
     {
         var psi = new ProcessStartInfo

@@ -10,4 +10,6 @@ public interface IGitProviderService
     Task<string> CloneRepositoryAsync(CloneRepoRequest request);
     Task<GitPushResult> PushToRemoteRepositoryAsync(PushToRemoteRepoRequest request);
     Task<GitRateLimitInfo?> GetRateLimitAsync(string accountId);
+    Task<List<RepoFileNode>> GetCloudRepoTreeAsync(string accountId, string repoFullName, string? path = null, string? branch = null);
+    Task<RepoFileContentResult> GetCloudFileContentAsync(string accountId, string repoFullName, string path, string? branch = null);
 }

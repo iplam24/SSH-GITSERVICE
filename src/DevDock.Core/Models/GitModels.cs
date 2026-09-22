@@ -449,3 +449,28 @@ public class CreateGithubReleaseResult
     public string? TagName { get; set; }
     public string Message { get; set; } = string.Empty;
 }
+
+public class RepoFileNode
+{
+    public string Name { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public bool IsDirectory { get; set; }
+    public long? Size { get; set; }
+    public string? Extension { get; set; }
+    public string? DownloadUrl { get; set; }
+    public string? Type { get; set; }
+}
+
+public class RepoFileContentResult
+{
+    public string Name { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public string? Content { get; set; }
+    public long Size { get; set; }
+    public string? Extension { get; set; }
+    public bool IsBinary { get; set; }
+    public bool IsImage { get; set; }
+    public string? DataUrl { get; set; }
+    public int LineCount { get; set; }
+    public string? ErrorMessage { get; set; }
+}

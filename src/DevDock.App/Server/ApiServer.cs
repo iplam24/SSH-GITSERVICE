@@ -520,6 +520,184 @@ public class ApiServer
         api.MapGet("/git/providers/rate-limit", async (string accountId, IGitProviderService svc) =>
             Results.Ok(await svc.GetRateLimitAsync(accountId)));
 
+        api.MapGet("/git/providers/tree", async (string accountId, string repo, string? path, string? branch, IGitProviderService svc) =>
+        {
+            try
+            {
+                var items = await svc.GetCloudRepoTreeAsync(accountId, repo, path, branch);
+                return Results.Ok(items);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        api.MapGet("/git/providers/file", async (string accountId, string repo, string path, string? branch, IGitProviderService svc) =>
+        {
+            try
+            {
+                var file = await svc.GetCloudFileContentAsync(accountId, repo, path, branch);
+                return Results.Ok(file);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        // Local File System Explorer & Code Viewer
+        api.MapGet("/fs/tree", (string path) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+                {
+                    return Results.BadRequest(new { error = "Thư mục không tồn tại hoặc không hợp lệ" });
+                }
+
+                var dirInfo = new DirectoryInfo(path);
+                var ignoredDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".git", "node_modules", "bin", "obj", ".vs", ".idea", "dist", "build",
+                    ".angular", ".next", "packages", "TestResults", ".gradle", "target", "vendor"
+                };
+
+                var results = new List<RepoFileNode>();
+
+                foreach (var dir in dirInfo.EnumerateDirectories())
+                {
+                    if ((dir.Attributes & FileAttributes.Hidden) != 0 || ignoredDirs.Contains(dir.Name))
+                        continue;
+
+                    results.Add(new RepoFileNode
+                    {
+                        Name = dir.Name,
+                        Path = dir.FullName,
+                        IsDirectory = true,
+                        Type = "dir"
+                    });
+                }
+
+                foreach (var file in dirInfo.EnumerateFiles())
+                {
+                    if ((file.Attributes & FileAttributes.Hidden) != 0)
+                        continue;
+
+                    results.Add(new RepoFileNode
+                    {
+                        Name = file.Name,
+                        Path = file.FullName,
+                        IsDirectory = false,
+                        Size = file.Length,
+                        Extension = file.Extension,
+                        Type = "file"
+                    });
+                }
+
+                var sorted = results
+                    .OrderByDescending(x => x.IsDirectory)
+                    .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                return Results.Ok(sorted);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        api.MapGet("/fs/file", async (string path) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                {
+                    return Results.BadRequest(new { error = "Tệp không tồn tại hoặc không hợp lệ" });
+                }
+
+                var fi = new FileInfo(path);
+                var ext = fi.Extension.ToLowerInvariant();
+                var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".bmp"
+                };
+
+                if (imageExts.Contains(ext))
+                {
+                    var bytes = await File.ReadAllBytesAsync(path);
+                    var b64 = Convert.ToBase64String(bytes);
+                    var mime = ext switch
+                    {
+                        ".svg" => "image/svg+xml",
+                        ".png" => "image/png",
+                        ".gif" => "image/gif",
+                        ".ico" => "image/x-icon",
+                        ".webp" => "image/webp",
+                        ".bmp" => "image/bmp",
+                        _ => "image/jpeg"
+                    };
+
+                    return Results.Ok(new RepoFileContentResult
+                    {
+                        Name = fi.Name,
+                        Path = fi.FullName,
+                        Size = fi.Length,
+                        Extension = ext,
+                        IsImage = true,
+                        DataUrl = $"data:{mime};base64,{b64}",
+                        LineCount = 0
+                    });
+                }
+
+                if (fi.Length > 3 * 1024 * 1024)
+                {
+                    return Results.Ok(new RepoFileContentResult
+                    {
+                        Name = fi.Name,
+                        Path = fi.FullName,
+                        Size = fi.Length,
+                        Extension = ext,
+                        ErrorMessage = "Tệp quá lớn (> 3MB) để hiển thị trực tiếp trong DevDock."
+                    });
+                }
+
+                var fileBytes = await File.ReadAllBytesAsync(path);
+                if (fileBytes.Take(1024).Any(b => b == 0))
+                {
+                    return Results.Ok(new RepoFileContentResult
+                    {
+                        Name = fi.Name,
+                        Path = fi.FullName,
+                        Size = fi.Length,
+                        Extension = ext,
+                        IsBinary = true,
+                        ErrorMessage = "Đây là tệp nhị phân, không thể hiển thị dưới dạng văn bản."
+                    });
+                }
+
+                var content = Encoding.UTF8.GetString(fileBytes);
+                var lines = content.Split('\n').Length;
+
+                return Results.Ok(new RepoFileContentResult
+                {
+                    Name = fi.Name,
+                    Path = fi.FullName,
+                    Content = content,
+                    Size = fi.Length,
+                    Extension = ext,
+                    IsBinary = false,
+                    IsImage = false,
+                    LineCount = lines
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
         api.MapPost("/git/init", async (GitRepoRequest req, IGitService svc) =>
         {
             var output = await svc.InitRepositoryAsync(req.RepoPath);

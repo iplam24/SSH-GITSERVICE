@@ -853,3 +853,26 @@ export interface CreateGithubReleaseResult {
   message: string;
 }
 
+export interface RepoFileNode {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size?: number | null;
+  extension?: string | null;
+  downloadUrl?: string | null;
+  type?: string;
+}
+
+export interface RepoFileContentResult {
+  name: string;
+  path: string;
+  content?: string | null;
+  size: number;
+  extension?: string | null;
+  isBinary: boolean;
+  isImage: boolean;
+  dataUrl?: string | null;
+  lineCount: number;
+  errorMessage?: string | null;
+}
+
