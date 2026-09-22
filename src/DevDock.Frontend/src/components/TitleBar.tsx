@@ -27,8 +27,15 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   const { lang, toggleLang, t } = useLanguage();
   return (
     <header
-      className="h-9 bg-[#0a0c10] border-b border-[#1a1e2a] flex items-center justify-between px-3 select-none flex-shrink-0 z-50 transition-colors"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      className="h-9 bg-[#0a0c10] border-b border-[#1a1e2a] flex items-center justify-between px-3 select-none flex-shrink-0 z-50 transition-colors cursor-default"
+      onMouseDown={(e) => {
+        if ((e.target as HTMLElement).closest('button, input, a, select, textarea, [data-no-drag]')) return;
+        windowControls.drag();
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as HTMLElement).closest('button, input, a, select, textarea, [data-no-drag]')) return;
+        windowControls.maximize();
+      }}
     >
       {/* Left: Brand */}
       <div className="flex items-center gap-2.5">
@@ -117,11 +124,12 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         )}
 
         {/* Windows 11 Controls */}
-        <div className="flex items-center -mr-2">
+        <div className="flex items-center -mr-2" data-no-drag="true">
           <button
             type="button"
+            data-no-drag="true"
             onClick={toggleLang}
-            className="h-8 px-2 flex items-center gap-1 text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors text-[10px] font-mono"
+            className="h-8 px-2 flex items-center gap-1 text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors text-[10px] font-mono cursor-pointer"
             title={lang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
           >
             <Globe className="w-3 h-3" />
@@ -129,24 +137,34 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           </button>
           <button
             type="button"
+            data-no-drag="true"
             onClick={windowControls.minimize}
-            className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors"
+            className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors cursor-pointer"
             title={t('titlebar.minimize')}
           >
             <Minus className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
+            data-no-drag="true"
             onClick={windowControls.maximize}
-            className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors"
+            className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors cursor-pointer"
             title={t('titlebar.maximize')}
           >
             <Square className="w-3 h-3" />
           </button>
           <button
             type="button"
-            onClick={onRequestExit ?? windowControls.close}
-            className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-[#C42B1C] transition-colors"
+            data-no-drag="true"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onRequestExit) {
+                onRequestExit();
+              } else {
+                windowControls.close();
+              }
+            }}
+            className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-[#C42B1C] transition-colors cursor-pointer"
             title={t('titlebar.close')}
           >
             <X className="w-3.5 h-3.5" />

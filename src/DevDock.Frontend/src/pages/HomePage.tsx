@@ -96,29 +96,56 @@ export const HomePage: React.FC<HomePageProps> = ({
       </div>
 
       {/* System Metrics Cards */}
-      {metrics && (() => {
-        const cpu = metrics?.cpuUsagePercent ?? (metrics as any)?.CpuUsagePercent ?? 0;
-        const ram = metrics?.ramUsagePercent ?? (metrics as any)?.RamUsagePercent ?? 0;
-        const usedRam = metrics?.usedRamMb ?? (metrics as any)?.UsedRamMb ?? 0;
-        const totalRam = metrics?.totalRamMb ?? (metrics as any)?.TotalRamMb ?? 0;
-        const drives = (metrics.drives && metrics.drives.length > 0)
-          ? metrics.drives
+      {(() => {
+        const cpu = Number(metrics?.cpuUsagePercent ?? (metrics as any)?.CpuUsagePercent ?? 0);
+        const ram = Number(metrics?.ramUsagePercent ?? (metrics as any)?.RamUsagePercent ?? 0);
+        const usedRam = Number(metrics?.usedRamMb ?? (metrics as any)?.UsedRamMb ?? 0);
+        const totalRam = Number(metrics?.totalRamMb ?? (metrics as any)?.TotalRamMb ?? 0);
+        const rawDrives = metrics?.drives || (metrics as any)?.Drives;
+        const drives: Array<{
+          name: string;
+          letter: string;
+          volumeLabel: string;
+          driveType: string;
+          totalGb: number;
+          freeGb: number;
+          usedGb: number;
+          usagePercent: number;
+          isSystem: boolean;
+        }> = (rawDrives && Array.isArray(rawDrives) && rawDrives.length > 0)
+          ? rawDrives.map((d: any) => {
+              const tot = Number(d.totalGb ?? d.TotalGb ?? 0);
+              const free = Number(d.freeGb ?? d.FreeGb ?? 0);
+              const used = Number(d.usedGb ?? d.UsedGb ?? (tot - free));
+              const pct = Number(d.usagePercent ?? d.UsagePercent ?? (tot > 0 ? (used / tot) * 100 : 0));
+              return {
+                name: d.name ?? d.Name ?? '',
+                letter: d.letter ?? d.Letter ?? '',
+                volumeLabel: d.volumeLabel ?? d.VolumeLabel ?? '',
+                driveType: d.driveType ?? d.DriveType ?? 'Fixed',
+                totalGb: tot,
+                freeGb: free,
+                usedGb: used,
+                usagePercent: pct,
+                isSystem: Boolean(d.isSystem ?? d.IsSystem ?? false)
+              };
+            })
           : [
               {
                 name: 'C:\\',
                 letter: 'C:',
                 volumeLabel: 'OS',
                 driveType: 'Fixed',
-                totalGb: metrics?.diskTotalGb ?? (metrics as any)?.DiskTotalGb ?? 0,
-                freeGb: metrics?.diskFreeGb ?? (metrics as any)?.DiskFreeGb ?? 0,
-                usedGb: ((metrics?.diskTotalGb ?? (metrics as any)?.DiskTotalGb ?? 0) - (metrics?.diskFreeGb ?? (metrics as any)?.DiskFreeGb ?? 0)),
-                usagePercent: metrics?.diskUsagePercent ?? (metrics as any)?.DiskUsagePercent ?? 0,
+                totalGb: Number(metrics?.diskTotalGb ?? (metrics as any)?.DiskTotalGb ?? 0),
+                freeGb: Number(metrics?.diskFreeGb ?? (metrics as any)?.DiskFreeGb ?? 0),
+                usedGb: Number((metrics?.diskTotalGb ?? (metrics as any)?.DiskTotalGb ?? 0) - (metrics?.diskFreeGb ?? (metrics as any)?.DiskFreeGb ?? 0)),
+                usagePercent: Number(metrics?.diskUsagePercent ?? (metrics as any)?.DiskUsagePercent ?? 0),
                 isSystem: true
               }
             ];
         const activeDrive = drives[Math.min(selectedDriveIndex, drives.length - 1)] || drives[0];
-        const netRecv = metrics?.networkReceivedKbps ?? (metrics as any)?.NetworkReceivedKbps ?? 0;
-        const netSent = metrics?.networkSentKbps ?? (metrics as any)?.NetworkSentKbps ?? 0;
+        const netRecv = Number(metrics?.networkReceivedKbps ?? (metrics as any)?.NetworkReceivedKbps ?? 0);
+        const netSent = Number(metrics?.networkSentKbps ?? (metrics as any)?.NetworkSentKbps ?? 0);
 
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -249,7 +276,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                           </span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <div className="w-12 sm:w-14 bg-[#181d2a] h-1 rounded-full overflow-hidden">
+                          <span className="text-[9px] text-slate-500 hidden sm:inline">{d.freeGb.toFixed(0)} GB trống</span>
+                          <div className="w-10 sm:w-12 bg-[#181d2a] h-1 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${
                                 d.usagePercent > 90
@@ -261,7 +289,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                               style={{ width: `${Math.min(d.usagePercent, 100)}%` }}
                             />
                           </div>
-                          <span className="w-7 text-right text-[10px]">
+                          <span className="w-8 text-right text-[10px] font-semibold text-slate-300">
                             {d.usagePercent.toFixed(0)}%
                           </span>
                         </div>

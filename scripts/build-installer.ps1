@@ -39,6 +39,14 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish DevDock.App failed." }
 # Remove stale hashed assets left over from previous frontend builds
 & (Join-Path $root "scripts\clean-stale-assets.ps1")
 
+# Auto-sync to installed directory if it exists (so Desktop shortcut runs latest build immediately)
+$installedDir = "C:\Users\Admin\AppData\Local\Programs\DevDock"
+if (Test-Path $installedDir) {
+    Write-Host "`n[Auto-Sync] Mirroring updated files to installed directory: $installedDir..." -ForegroundColor Cyan
+    Copy-Item -Path "$distDir\*" -Destination $installedDir -Recurse -Force
+    Write-Host "Updated installed DevDock files successfully." -ForegroundColor Green
+}
+
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # 3. Create payload.zip for installer

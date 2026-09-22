@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { LogOut, Power, X, ShieldAlert, ArrowDownToLine, Globe } from 'lucide-react';
 import { windowControls } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -23,7 +23,7 @@ export const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onCl
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 select-none">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150 select-none">
       <div
         className="w-full max-w-md bg-[#0f121d] border border-[#23293f] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}

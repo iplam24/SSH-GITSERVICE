@@ -79,7 +79,7 @@ import { api } from '../services/api';
 import { useConfirm } from '../context/ConfirmContext';
 import { CodeViewerModal } from '../components/CodeViewerModal';
 
-type GitTab = 'changes' | 'history' | 'branches' | 'tags' | 'cloud';
+type GitTab = 'changes' | 'history' | 'branches' | 'tags' | 'cloud' | 'code';
 
 interface GitPageProps {
   projects: ProjectItem[];
@@ -1584,17 +1584,15 @@ export const GitPage: React.FC<GitPageProps> = ({
             </button>
           )}
 
-          {activeRepoPath && (
-            <button
-              type="button"
-              onClick={() => handleOpenCodeViewerLocal(activeRepoPath)}
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-sky-300 border border-sky-500/30 text-xs font-medium cursor-pointer transition-colors whitespace-nowrap shrink-0"
-              title={`Xem cây thư mục & đọc mã nguồn dự án "${activeRepoPath}"`}
-            >
-              <Code className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden md:inline">Xem Code</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => handleOpenCodeViewerLocal(activeRepoPath || 'D:\\ToolTienich')}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#12151f] hover:bg-[#171b26] text-sky-300 border border-sky-500/40 text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0 shadow-sm"
+            title={activeRepoPath ? `Xem cây thư mục & đọc mã nguồn dự án "${activeRepoPath}"` : 'Xem cây thư mục & đọc mã nguồn (D:\\ToolTienich)'}
+          >
+            <Code className="w-3.5 h-3.5 text-sky-400" />
+            <span>Xem Code</span>
+          </button>
 
           <button
             type="button"
@@ -1800,6 +1798,23 @@ export const GitPage: React.FC<GitPageProps> = ({
             <span className="px-1.5 py-0.2 rounded bg-white/[0.06] text-slate-400 text-[10px] font-mono">
               {remoteRepos.length > 0 ? remoteRepos.length : 'API'}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('code');
+              handleOpenCodeViewerLocal(activeRepoPath || 'D:\\ToolTienich');
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer whitespace-nowrap ${
+              activeTab === 'code'
+                ? 'bg-sky-500/20 text-sky-300 font-semibold border border-sky-500/40'
+                : 'text-sky-400 hover:text-sky-200 hover:bg-sky-500/10'
+            }`}
+            title="Duyệt cây thư mục và xem mã nguồn (Code Viewer & Folder Explorer)"
+          >
+            <Code className="w-3.5 h-3.5 text-sky-400" />
+            <span>Mã nguồn</span>
           </button>
         </div>
 
@@ -3090,6 +3105,24 @@ export const GitPage: React.FC<GitPageProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => {
+                    if (remoteRepos.length > 0) {
+                      handleOpenCodeViewerCloud(remoteRepos[0]);
+                    } else if (selectedAccountId) {
+                      onShowToast('Đang tải danh sách kho lưu trữ, vui lòng nhấn Fetch hoặc chọn một kho...', 'info');
+                    } else {
+                      onShowToast('Vui lòng kết nối hoặc chọn tài khoản GitHub để xem mã nguồn.', 'info');
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/35 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+                  title="Duyệt mã nguồn từ xa trên GitHub"
+                >
+                  <Code className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Xem Code GitHub</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setIsCreateCloudRepoModalOpen(true)}
                   disabled={accounts.length === 0}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent hover:bg-accent-hover text-white text-xs font-medium cursor-pointer shadow-sm disabled:opacity-50 transition-colors"
@@ -3245,7 +3278,7 @@ export const GitPage: React.FC<GitPageProps> = ({
                       <button
                         type="button"
                         onClick={() => handleOpenCodeViewerCloud(repo)}
-                        className="px-2.5 py-1 rounded-md bg-[#12151f] hover:bg-[#181d2a] text-sky-300 border border-sky-500/30 text-[11px] font-medium flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                        className="px-2.5 py-1 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/40 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
                         title="Duyệt cây thư mục và xem mã nguồn kho lưu trữ này trên GitHub"
                       >
                         <Code className="w-3.5 h-3.5 text-sky-400" />
@@ -3319,6 +3352,94 @@ export const GitPage: React.FC<GitPageProps> = ({
           
       </div>
     </div>
+        )}
+
+        {/* Tab 6: Mã Nguồn (Code Explorer) */}
+        {activeTab === 'code' && (
+          <div className="flex-1 overflow-y-auto w-full min-h-0 p-4 sm:p-5 pr-2">
+            <div className="max-w-6xl mx-auto w-full flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1a1e2a]">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <Code className="w-4 h-4 text-sky-400" />
+                    <span>Trình Khám Phá Mã Nguồn (Code Viewer & Folder Explorer)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Duyệt cây thư mục tệp tin, xem nội dung mã nguồn, đọc diff và sao chép code dự án.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCodeViewerLocal(activeRepoPath || 'D:\\ToolTienich')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Mở Trình Đọc Code</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Local Source Card */}
+                <div className="p-5 rounded-xl bg-[#12151f] border border-[#1e2332] flex flex-col justify-between gap-4">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-slate-100 font-semibold text-sm">
+                      <FolderOpen className="w-4 h-4 text-emerald-400" />
+                      <span>Mã Nguồn Cục Bộ (Local Project)</span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Duyệt cây thư mục và đọc trực tiếp các tệp tin trong máy tính mà không cần cài thêm trình biên tập ngoài.
+                    </p>
+                    <div className="p-2.5 rounded-lg bg-[#0a0c10] border border-[#1a1e2a] font-mono text-xs text-slate-300 truncate">
+                      Thư mục: <strong className="text-sky-300">{activeRepoPath || 'D:\\ToolTienich'}</strong>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCodeViewerLocal(activeRepoPath || 'D:\\ToolTienich')}
+                    className="w-full py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <Code className="w-4 h-4" />
+                    <span>Duyệt Cây Thư Mục & Xem Code Cục Bộ</span>
+                  </button>
+                </div>
+
+                {/* Cloud GitHub Source Card */}
+                <div className="p-5 rounded-xl bg-[#12151f] border border-[#1e2332] flex flex-col justify-between gap-4">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-slate-100 font-semibold text-sm">
+                      <Cloud className="w-4 h-4 text-sky-400" />
+                      <span>Mã Nguồn GitHub Cloud (Từ Xa)</span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Đọc mã nguồn trực tiếp từ GitHub API theo thời gian thực mà không cần tốn dung lượng ổ cứng để clone về máy.
+                    </p>
+                    <div className="p-2.5 rounded-lg bg-[#0a0c10] border border-[#1a1e2a] font-mono text-xs text-slate-300 truncate">
+                      {remoteRepos.length > 0
+                        ? `Kho đầu tiên: ${remoteRepos[0].fullName || remoteRepos[0].name}`
+                        : 'Chưa nạp kho từ xa — Bấm Fetch trong tab Kho Remote'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (remoteRepos.length > 0) {
+                        handleOpenCodeViewerCloud(remoteRepos[0]);
+                      } else {
+                        setActiveTab('cloud');
+                        onShowToast('Vui lòng tìm nạp danh sách kho GitHub để xem mã nguồn từ xa', 'info');
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-lg bg-[#192238] hover:bg-[#202d4a] text-sky-300 border border-sky-500/40 font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <Cloud className="w-4 h-4" />
+                    <span>Xem Code GitHub (Cloud Repos)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

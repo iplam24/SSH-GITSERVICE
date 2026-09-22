@@ -155,8 +155,11 @@ export const App: React.FC = () => {
     }
   }, [settings.accentColor]);
 
-  // Connect live metrics WebSocket
+  // Connect live metrics WebSocket + initial fetch
   useEffect(() => {
+    // Initial fetch to populate metrics immediately without waiting for WebSocket tick
+    api.getMetrics().then(setMetrics).catch(() => {});
+
     const wsUrl = api.getMetricsWsUrl();
     let ws: WebSocket | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;

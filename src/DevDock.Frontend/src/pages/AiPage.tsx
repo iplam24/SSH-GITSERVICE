@@ -232,7 +232,31 @@ export const AiPage: React.FC<AiPageProps> = ({
   const [inputPrompt, setInputPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const STORAGE_KEY_AI_MODELS = 'devdock_ai_selected_models_v1';
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_AI_MODELS);
+      if (saved) {
+        const map = JSON.parse(saved);
+        if (activeProvider?.id && map[activeProvider.id]) {
+          return map[activeProvider.id];
+        }
+      }
+    } catch { }
+    return activeProvider?.defaultModel || '';
+  });
+
+  const handleUpdateSelectedModel = (m: string) => {
+    setSelectedModel(m);
+    if (activeProvider?.id) {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_AI_MODELS);
+        const map = saved ? JSON.parse(saved) : {};
+        map[activeProvider.id] = m;
+        localStorage.setItem(STORAGE_KEY_AI_MODELS, JSON.stringify(map));
+      } catch { }
+    }
+  };
 
   // Scaffolder drawer
   const [isScaffoldOpen, setIsScaffoldOpen] = useState(false);
@@ -256,9 +280,19 @@ export const AiPage: React.FC<AiPageProps> = ({
 
   useEffect(() => {
     if (activeProvider) {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_AI_MODELS);
+        if (saved) {
+          const map = JSON.parse(saved);
+          if (map[activeProvider.id]) {
+            setSelectedModel(map[activeProvider.id]);
+            return;
+          }
+        }
+      } catch { }
       setSelectedModel(activeProvider.defaultModel);
     }
-  }, [activeProvider]);
+  }, [activeProvider?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1246,7 +1280,7 @@ Quy ước trả lời:
                 <span className="font-semibold text-slate-200">{activeProvider.name}</span>
                 <select
                   value={selectedModel || activeProvider.defaultModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
+                  onChange={(e) => handleUpdateSelectedModel(e.target.value)}
                   className="bg-transparent text-emerald-400 text-xs font-mono font-medium focus:outline-none cursor-pointer"
                 >
                   <option value={activeProvider.defaultModel} className="bg-[#0B0F17] text-slate-200">

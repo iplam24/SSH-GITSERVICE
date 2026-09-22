@@ -120,11 +120,33 @@ public partial class MainWindow : Window
         StateChanged += OnWindowStateChanged;
     }
 
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+    private const int SM_CXFRAME = 32;
+    private const int SM_CYFRAME = 33;
+    private const int SM_CXPADDEDBORDER = 92;
+
     private void OnWindowStateChanged(object? sender, EventArgs e)
     {
-        // With Win32 WM_GETMINMAXINFO handled, the maximized window is positioned
-        // exactly within the monitor WorkArea (above taskbar) without clipping edges.
-        RootGrid.Margin = new Thickness(0);
+        if (WindowState == WindowState.Maximized)
+        {
+            var source = PresentationSource.FromVisual(this);
+            double dpiX = source?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+            double dpiY = source?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+
+            int frameX = GetSystemMetrics(SM_CXFRAME);
+            int frameY = GetSystemMetrics(SM_CYFRAME);
+            int padding = GetSystemMetrics(SM_CXPADDEDBORDER);
+
+            int borderX = (frameX > 0 ? frameX : 4) + (padding > 0 ? padding : 4);
+            int borderY = (frameY > 0 ? frameY : 4) + (padding > 0 ? padding : 4);
+
+            RootGrid.Margin = new Thickness(borderX / dpiX, borderY / dpiY, borderX / dpiX, borderY / dpiY);
+        }
+        else
+        {
+            RootGrid.Margin = new Thickness(0);
+        }
     }
 
     private static void Log(string msg)
@@ -249,16 +271,25 @@ public partial class MainWindow : Window
 
     private void RestoreWindow()
     {
-        Show();
-        if (WindowState == WindowState.Minimized)
+        try
         {
-            WindowState = WindowState.Normal;
+            Show();
         }
-        Activate();
-        Topmost = true;
-        Topmost = false;
-        Focus();
-        SetForegroundWindow(_windowHandle);
+        catch { }
+
+        try
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                WindowState = WindowState.Normal;
+            }
+            Activate();
+            Topmost = true;
+            Topmost = false;
+            Focus();
+            SetForegroundWindow(_windowHandle);
+        }
+        catch { }
     }
 
     private async Task InitializeWebViewAsync()
@@ -441,7 +472,8 @@ public partial class MainWindow : Window
         if (msg == WM_GETMINMAXINFO)
         {
             WmGetMinMaxInfo(hwnd, lParam);
-            handled = true;
+            // Do not consume message; let WPF WindowChrome continue its own tracking
+            handled = false;
             return IntPtr.Zero;
         }
 
@@ -490,20 +522,34 @@ public partial class MainWindow : Window
         catch { }
     }
 
-    private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_isRealExit)
         {
-            UnregisterHotKey(_windowHandle, HOTKEY_ID);
-            _notifyIcon?.Dispose();
-            await _apiServer.StopAsync();
+            try
+            {
+                UnregisterHotKey(_windowHandle, HOTKEY_ID);
+                _notifyIcon?.Dispose();
+                _ = _apiServer.StopAsync();
+            }
+            catch { }
             return;
         }
 
         // Intercept close event (from taskbar right-click "Close window", Alt+F4, or TitleBar X)
-        // Prevent immediate close, restore/bring window to front, and request Exit Confirm Modal in React UI
+        // Prevent immediate close and request Exit Confirm Modal in React UI
         e.Cancel = true;
-        RestoreWindow();
+        try
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                WindowState = WindowState.Normal;
+            }
+            Activate();
+            SetForegroundWindow(_windowHandle);
+        }
+        catch { }
+
         PostWebMessage(new { type = "REQUEST_EXIT_CONFIRM" });
     }
 
