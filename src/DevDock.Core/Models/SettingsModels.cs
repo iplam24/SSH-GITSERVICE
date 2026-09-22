@@ -4,6 +4,8 @@ public class AppSettings
 {
     public string Theme { get; set; } = "dark"; // dark, light, system
     public string AccentColor { get; set; } = "emerald"; // emerald, blue, violet, amber, rose
+    public string AppFontSize { get; set; } = "medium"; // small, medium, large, xlarge
+    public int AppFontSizePercent { get; set; } = 100; // 85 to 125 percent
     public int TerminalFontSize { get; set; } = 14;
     public string TerminalFontFamily { get; set; } = "'Cascadia Code', 'Fira Code', Consolas, monospace";
     public TerminalShellType DefaultShell { get; set; } = TerminalShellType.PowerShell;

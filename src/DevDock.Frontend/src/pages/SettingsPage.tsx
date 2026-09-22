@@ -28,6 +28,7 @@ import {
   GitBranch,
   Download,
   Info,
+  Type,
 } from 'lucide-react';
 import { useConfirm } from '../context/ConfirmContext';
 import { AppSettings, GitAccount, GitProvider, AiProviderConfig, AiProviderType, GitGlobalConfig } from '../types';
@@ -1141,6 +1142,152 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   <span className="text-xs text-slate-400">
                     Chế độ: <strong className="text-slate-200 font-medium">Dark Modern (Linear &amp; Raycast Inspired)</strong>
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* App Font Size & UI Scale */}
+            <div className="p-5 rounded-2xl bg-[#0c0d12] border border-[#1e2230] flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <Type className="w-4 h-4 text-sky-400" />
+                    <span>Cỡ chữ toàn ứng dụng (App Font Size & UI Scale)</span>
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Điều chỉnh kích thước phông chữ và tỉ lệ hiển thị cho toàn bộ giao diện DevDock.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = {
+                      ...settings,
+                      appFontSize: 'medium' as const,
+                      appFontSizePercent: 100,
+                    };
+                    onSaveSettings(updated);
+                    onShowToast('Đã đặt lại cỡ chữ mặc định (100%)', 'info');
+                  }}
+                  className="px-2.5 py-1 rounded-md text-[11px] text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] border border-[#1e2230] transition-colors cursor-pointer self-start sm:self-auto"
+                >
+                  Đặt lại mặc định (100%)
+                </button>
+              </div>
+
+              {/* Preset Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { id: 'small' as const, percent: 90, label: 'Nhỏ (90%)', desc: 'Gọn gàng, hiển thị nhiều dữ liệu', sampleText: 'text-xs' },
+                  { id: 'medium' as const, percent: 100, label: 'Tiêu chuẩn (100%)', desc: 'Mặc định chuẩn màn hình', sampleText: 'text-sm' },
+                  { id: 'large' as const, percent: 110, label: 'Lớn (110%)', desc: 'Dễ nhìn, giảm mỏi mắt', sampleText: 'text-base' },
+                  { id: 'xlarge' as const, percent: 120, label: 'Rất lớn (120%)', desc: 'Chữ to, độ rõ nét cao', sampleText: 'text-lg' },
+                ].map((item) => {
+                  const currentPercent = settings.appFontSizePercent ?? (
+                    settings.appFontSize === 'small' ? 90 :
+                    settings.appFontSize === 'large' ? 110 :
+                    settings.appFontSize === 'xlarge' ? 120 : 100
+                  );
+                  const isSelected = currentPercent === item.percent;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        const updated = {
+                          ...settings,
+                          appFontSize: item.id,
+                          appFontSizePercent: item.percent,
+                        };
+                        onSaveSettings(updated);
+                        onShowToast(`Đã đổi cỡ chữ thành ${item.label}`, 'success');
+                      }}
+                      className={`flex flex-col items-start gap-1 p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-sky-500/60 bg-sky-500/10 text-slate-100 font-semibold shadow-sm'
+                          : 'border-[#1e2230] bg-[#12141c] text-slate-400 hover:text-slate-200 hover:border-[#2a2f42]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className={`font-mono font-bold ${item.sampleText} text-slate-200`}>
+                          Aa
+                        </span>
+                        {isSelected && (
+                          <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold text-slate-200 mt-1">{item.label}</span>
+                      <span className="text-[10px] text-slate-500 leading-tight">{item.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Slider for fine-tuning */}
+              <div className="p-4 rounded-xl bg-[#12141c] border border-[#1e2230] flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-300">Tinh chỉnh kích thước chính xác:</span>
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                    {settings.appFontSizePercent ?? 100}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={85}
+                  max={125}
+                  step={5}
+                  value={settings.appFontSizePercent ?? 100}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    let name: 'small' | 'medium' | 'large' | 'xlarge' = 'medium';
+                    if (val <= 90) name = 'small';
+                    else if (val >= 120) name = 'xlarge';
+                    else if (val >= 110) name = 'large';
+                    const updated = {
+                      ...settings,
+                      appFontSize: name,
+                      appFontSizePercent: val,
+                    };
+                    onSaveSettings(updated);
+                  }}
+                  className="w-full accent-sky-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                  <span>85% (Thu nhỏ)</span>
+                  <span>100% (Chuẩn)</span>
+                  <span>125% (Phóng to)</span>
+                </div>
+              </div>
+
+              {/* Live Preview Box */}
+              <div className="p-4 rounded-xl bg-[#0e1017] border border-[#1e2230] flex flex-col gap-2.5">
+                <span className="text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider">
+                  Xem trước giao diện với cỡ chữ này:
+                </span>
+                <div className="flex flex-col gap-2 p-3.5 rounded-lg bg-[#141722] border border-[#1e2230]">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                      <span>⚡ DevDock Command Center</span>
+                      <span className="text-[10px] font-mono font-normal px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                        {settings.appFontSizePercent ?? 100}% scale
+                      </span>
+                    </h4>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Đang áp dụng
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Đây là đoạn văn bản minh họa. Kích thước này sẽ được áp dụng trực tiếp lên toàn bộ ứng dụng: Trang chủ, Kho Git, Terminal, Quản lý dự án, DevOps, Công cụ lập trình và Trợ lý AI.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1 font-mono text-[11px] text-slate-400 flex-wrap">
+                    <span className="text-slate-300">branch: main</span>
+                    <span>•</span>
+                    <span className="text-emerald-400">● Online</span>
+                    <span>•</span>
+                    <span>CPU: 18%</span>
+                    <span>•</span>
+                    <span>RAM: 6.2 GB / 16.0 GB</span>
+                  </div>
                 </div>
               </div>
             </div>

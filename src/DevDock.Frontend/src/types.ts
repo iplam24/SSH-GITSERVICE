@@ -278,6 +278,8 @@ export interface TerminalSessionInfo {
 export interface AppSettings {
   theme: string;
   accentColor: string;
+  appFontSize?: 'small' | 'medium' | 'large' | 'xlarge';
+  appFontSizePercent?: number;
   terminalFontSize: number;
   terminalFontFamily: string;
   defaultShell: TerminalShellType;

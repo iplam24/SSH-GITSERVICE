@@ -49,6 +49,8 @@ export const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>({
     theme: 'dark',
     accentColor: 'blue',
+    appFontSize: 'medium',
+    appFontSizePercent: 100,
     terminalFontSize: 13,
     terminalFontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
     defaultShell: 'PowerShell',
@@ -154,6 +156,21 @@ export const App: React.FC = () => {
       document.documentElement.setAttribute('data-accent', settings.accentColor);
     }
   }, [settings.accentColor]);
+
+  useEffect(() => {
+    const percent = settings.appFontSizePercent ?? (
+      settings.appFontSize === 'small' ? 90 :
+      settings.appFontSize === 'large' ? 110 :
+      settings.appFontSize === 'xlarge' ? 120 : 100
+    );
+    const zoomVal = percent / 100;
+    (document.documentElement.style as any).zoom = zoomVal.toString();
+    document.documentElement.setAttribute('data-font-size', settings.appFontSize || 'medium');
+    document.documentElement.setAttribute('data-font-size-percent', percent.toString());
+    try {
+      localStorage.setItem('devdock_app_font_size_percent', percent.toString());
+    } catch {}
+  }, [settings.appFontSize, settings.appFontSizePercent]);
 
   // Connect live metrics WebSocket + initial fetch
   useEffect(() => {

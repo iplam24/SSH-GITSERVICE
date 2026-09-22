@@ -6,6 +6,19 @@
     <title>DevDock — Developer Command Center</title>
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="alternate icon" href="/favicon.ico" />
+    <script>
+      (function() {
+        try {
+          var p = localStorage.getItem('devdock_app_font_size_percent');
+          if (p) {
+            var z = parseFloat(p) / 100;
+            if (z >= 0.8 && z <= 1.4) {
+              document.documentElement.style.zoom = z;
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body class="bg-[#0B0F17] text-[#F1F5F9] font-sans antialiased overflow-hidden select-none h-full w-full">
     <div id="root" class="h-full w-full"></div>
