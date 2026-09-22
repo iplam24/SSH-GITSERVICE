@@ -193,109 +193,85 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* Disk Card — Multi-drive support (C:, D:, etc.) */}
             <div className="bg-[#12151f] border border-[#1b202e] hover:border-[#283046] rounded-lg p-3.5 flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all">
-              <div className="flex items-center justify-between text-slate-400 text-xs gap-1">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-medium truncate">
-                    Ổ {activeDrive.letter} {activeDrive.volumeLabel ? `(${activeDrive.volumeLabel})` : ''}
-                  </span>
-                  {activeDrive.isSystem && (
-                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
-                      OS
+              <div className="flex items-center justify-between text-slate-400 text-xs">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <span>Dung lượng ổ đĩa</span>
+                  {drives.length > 1 && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/[0.06] text-amber-300 font-semibold border border-amber-500/30">
+                      {drives.length} ổ đĩa
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {drives.length > 1 && (
-                    <div className="flex items-center gap-0.5 bg-[#0e1017] p-0.5 rounded border border-[#1e2332]">
-                      {drives.map((d, idx) => (
-                        <button
-                          key={d.letter}
-                          type="button"
-                          onClick={() => setSelectedDriveIndex(idx)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                            selectedDriveIndex === idx
-                              ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm'
-                              : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
-                          }`}
-                          title={`Ổ ${d.letter} (${d.volumeLabel || (d.isSystem ? 'Hệ thống' : 'Dữ liệu')}) • ${d.freeGb} GB trống / ${d.totalGb} GB`}
-                        >
-                          {d.letter}
-                        </button>
-                      ))}
+                <HardDrive className="w-4 h-4 text-amber-500/80 shrink-0" />
+              </div>
+
+              {drives.length === 1 ? (
+                <>
+                  <div className="mt-2.5 flex items-baseline justify-between gap-2">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl font-bold font-mono text-slate-100">
+                        {drives[0].usagePercent.toFixed(0)}%
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Ổ {drives[0].letter} • {drives[0].freeGb.toFixed(0)} GB trống
+                      </span>
                     </div>
-                  )}
-                  <HardDrive className="w-4 h-4 text-amber-500/80 shrink-0 ml-0.5" />
-                </div>
-              </div>
-
-              <div className="mt-2.5 flex items-baseline justify-between gap-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl font-bold font-mono text-slate-100">
-                    {activeDrive.usagePercent.toFixed(0)}%
-                  </span>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    {activeDrive.freeGb.toFixed(0)} GB trống
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  {activeDrive.totalGb.toFixed(0)} GB
-                </span>
-              </div>
-
-              <div className="w-full bg-[#181d2a] h-1.5 rounded-full mt-2.5 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    activeDrive.usagePercent > 90
-                      ? 'bg-rose-500'
-                      : activeDrive.usagePercent > 75
-                      ? 'bg-amber-500/90'
-                      : 'bg-emerald-500/90'
-                  }`}
-                  style={{ width: `${Math.min(activeDrive.usagePercent, 100)}%` }}
-                />
-              </div>
-
-              {/* Multi-drive overview bars if more than 1 drive */}
-              {drives.length > 1 && (
-                <div className="mt-2.5 pt-2 border-t border-[#1a1f2c] flex flex-col gap-1.5">
-                  {drives.map((d, idx) => {
-                    const isCur = selectedDriveIndex === idx;
-                    return (
-                      <div
-                        key={d.letter}
-                        onClick={() => setSelectedDriveIndex(idx)}
-                        className={`flex items-center justify-between text-[10px] font-mono px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                          isCur ? 'bg-white/[0.06] text-amber-300' : 'text-slate-400 hover:bg-white/[0.03] hover:text-slate-200'
-                        }`}
-                        title={`Ổ ${d.letter} (${d.volumeLabel || (d.isSystem ? 'Hệ thống' : 'Dữ liệu')}): ${d.freeGb} GB trống / ${d.totalGb} GB (${d.usagePercent}%)`}
-                      >
-                        <div className="flex items-center gap-1.5 truncate">
-                          <span className="font-bold">{d.letter}</span>
-                          <span className="text-slate-500 truncate text-[9px]">
-                            {d.volumeLabel || (d.isSystem ? 'OS' : 'Data')}
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {drives[0].totalGb.toFixed(0)} GB
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#181d2a] h-1.5 rounded-full mt-2.5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        drives[0].usagePercent > 90
+                          ? 'bg-rose-500'
+                          : drives[0].usagePercent > 75
+                          ? 'bg-amber-500/90'
+                          : 'bg-emerald-500/90'
+                      }`}
+                      style={{ width: `${Math.min(drives[0].usagePercent, 100)}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="mt-2 flex flex-col gap-2.5">
+                  {drives.map((d) => (
+                    <div key={d.letter} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-[11px] font-mono">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-bold text-slate-200">Ổ {d.letter}</span>
+                          <span className={`text-[9px] px-1 py-0.2 rounded font-sans ${
+                            d.isSystem
+                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold'
+                              : 'bg-white/[0.05] text-slate-400 border border-white/[0.08]'
+                          }`}>
+                            {d.isSystem ? 'OS' : (d.volumeLabel || 'Data')}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[9px] text-slate-500 hidden sm:inline">{d.freeGb.toFixed(0)} GB trống</span>
-                          <div className="w-10 sm:w-12 bg-[#181d2a] h-1 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                d.usagePercent > 90
-                                  ? 'bg-rose-500'
-                                  : d.usagePercent > 75
-                                  ? 'bg-amber-500'
-                                  : 'bg-emerald-500'
-                              }`}
-                              style={{ width: `${Math.min(d.usagePercent, 100)}%` }}
-                            />
-                          </div>
-                          <span className="w-8 text-right text-[10px] font-semibold text-slate-300">
+                        <div className="flex items-center gap-1.5 text-[10px] shrink-0">
+                          <span className="text-slate-400">{d.freeGb.toFixed(0)} GB trống</span>
+                          <span className="text-slate-500">/ {d.totalGb.toFixed(0)} GB</span>
+                          <span className={`font-bold ml-0.5 ${
+                            d.usagePercent > 90 ? 'text-rose-400' : d.usagePercent > 75 ? 'text-amber-400' : 'text-emerald-400'
+                          }`}>
                             {d.usagePercent.toFixed(0)}%
                           </span>
                         </div>
                       </div>
-                    );
-                  })}
+                      <div className="w-full bg-[#181d2a] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            d.usagePercent > 90
+                              ? 'bg-rose-500'
+                              : d.usagePercent > 75
+                              ? 'bg-amber-500/90'
+                              : 'bg-emerald-500/90'
+                          }`}
+                          style={{ width: `${Math.min(d.usagePercent, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -203,10 +203,11 @@ export const GitPage: React.FC<GitPageProps> = ({
   };
 
   const handleOpenCodeViewerCloud = (repo: RemoteRepoItem) => {
+    const accId = selectedAccountId || (accounts.length > 0 ? (accounts.find((a) => a.isDefault)?.id || accounts[0].id) : '');
     setCodeViewerMode('cloud');
     setCodeViewerTitle(repo.fullName || repo.name);
     setCodeViewerCloudConfig({
-      accountId: selectedAccountId,
+      accountId: accId,
       repoFullName: repo.fullName || repo.name,
       branch: repo.defaultBranch || 'main',
     });
@@ -3200,148 +3201,184 @@ export const GitPage: React.FC<GitPageProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {remoteRepos.map((repo) => (
-                  <div
-                    key={repo.id}
-                    className="p-3.5 rounded-lg bg-[#12151f] border border-[#1b202e] hover:border-[#283046] flex flex-col justify-between transition-all duration-150 group shadow-sm"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <a
-                          href={repo.htmlUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-semibold text-xs text-slate-200 group-hover:text-accent transition-colors truncate"
-                          title={repo.fullName || repo.name}
-                        >
-                          {repo.name}
-                        </a>
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.04] text-slate-400 border border-white/[0.08] flex items-center gap-1 shrink-0"
-                        >
-                          {repo.isPrivate ? (
-                            <>
-                              <Lock className="w-2.5 h-2.5 text-amber-400/80" />
-                              <span>Riêng tư</span>
-                            </>
-                          ) : (
-                            <>
-                              <Globe className="w-2.5 h-2.5 text-slate-500" />
-                              <span>Công khai</span>
-                            </>
-                          )}
-                        </span>
-                      </div>
-
-                      <p className="text-[11px] text-slate-400 line-clamp-2 min-h-[32px] leading-relaxed">
-                        {repo.description || (
-                          <span className="text-slate-600 italic">Không có mô tả</span>
-                        )}
-                      </p>
-
-                      <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono mt-2 mb-3">
-                        {repo.language && (
-                          <span className="flex items-center gap-1 text-slate-300">
-                            <span className="w-2 h-2 rounded-full bg-blue-500/80" />
-                            {repo.language}
+                {remoteRepos.map((repo) => {
+                  const matchingProject = projects.find(
+                    (p) =>
+                      p.name.toLowerCase() === repo.name.toLowerCase() ||
+                      p.path.toLowerCase().replace(/\\/g, '/').endsWith(`/${repo.name.toLowerCase()}`)
+                  );
+                  return (
+                    <div
+                      key={repo.id}
+                      onClick={() => handleOpenCodeViewerCloud(repo)}
+                      className="p-3.5 rounded-lg bg-[#12151f] border border-[#1b202e] hover:border-sky-500/40 hover:bg-[#141824] flex flex-col justify-between transition-all duration-150 group shadow-sm cursor-pointer"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenCodeViewerCloud(repo);
+                            }}
+                            className="font-semibold text-xs text-slate-200 group-hover:text-sky-300 transition-colors truncate text-left cursor-pointer hover:underline"
+                            title={`Xem mã nguồn ${repo.fullName || repo.name}`}
+                          >
+                            {repo.name}
+                          </button>
+                          <span
+                            className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.04] text-slate-400 border border-white/[0.08] flex items-center gap-1 shrink-0"
+                          >
+                            {repo.isPrivate ? (
+                              <>
+                                <Lock className="w-2.5 h-2.5 text-amber-400/80" />
+                                <span>Riêng tư</span>
+                              </>
+                            ) : (
+                              <>
+                                <Globe className="w-2.5 h-2.5 text-slate-500" />
+                                <span>Công khai</span>
+                              </>
+                            )}
                           </span>
-                        )}
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <Star className="w-3 h-3 text-slate-500" />
-                          <span>{repo.starsCount}</span>
-                        </span>
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <GitFork className="w-3 h-3 text-slate-500" />
-                          <span>{repo.forksCount}</span>
-                        </span>
+                        </div>
+
+                        <p className="text-[11px] text-slate-400 line-clamp-2 min-h-[32px] leading-relaxed">
+                          {repo.description || (
+                            <span className="text-slate-600 italic">Không có mô tả</span>
+                          )}
+                        </p>
+
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono mt-2 mb-3">
+                          {repo.language && (
+                            <span className="flex items-center gap-1 text-slate-300">
+                              <span className="w-2 h-2 rounded-full bg-blue-500/80" />
+                              {repo.language}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <Star className="w-3 h-3 text-slate-500" />
+                            <span>{repo.starsCount}</span>
+                          </span>
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <GitFork className="w-3 h-3 text-slate-500" />
+                            <span>{repo.forksCount}</span>
+                          </span>
+                          {matchingProject && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-sans font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 ml-auto">
+                              Đã có cục bộ
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-[#1a1f2c] flex items-center justify-between gap-1.5 flex-wrap">
+                        {/* Primary actions */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenCodeViewerCloud(repo);
+                            }}
+                            className="px-2.5 py-1 rounded-md bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 border border-sky-500/40 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                            title="Duyệt cây thư mục và xem mã nguồn kho lưu trữ này trên GitHub"
+                          >
+                            <Code className="w-3.5 h-3.5 text-sky-400" />
+                            <span>Xem Code</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (repo.htmlUrl) {
+                                api.openUrl(repo.htmlUrl);
+                              }
+                            }}
+                            className="px-2 py-1 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 hover:text-white border border-[#212738] text-[11px] font-medium flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                            title="Mở kho lưu trữ trên GitHub bằng trình duyệt web"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Mở GitHub</span>
+                          </button>
+
+                          {matchingProject ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectRepoPath(matchingProject.path);
+                                handleOpenCodeViewerLocal(matchingProject.path);
+                              }}
+                              className="px-2 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                              title={`Mở kho lưu trữ cục bộ tại ${matchingProject.path}`}
+                            >
+                              <FolderGit2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Mở Cục Bộ</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCloneUrl(repo.cloneUrl);
+                                setCloneProjectName(repo.name);
+                                setCloneDestPath(`D:\\Projects\\${repo.name}`);
+                                setIsCloneModalOpen(true);
+                              }}
+                              className="px-2 py-1 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-300 hover:text-white border border-[#212738] text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors shadow-sm"
+                              title="Sao chép kho lưu trữ về máy tính (Clone)"
+                            >
+                              <DownloadCloud className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Clone</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Secondary actions */}
+                        <div className="flex items-center gap-0.5 shrink-0 ml-auto">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPushTargetRepo(repo);
+                              setPushLocalPath(activeRepoPath || 'D:\\ToolTienich');
+                              setPushBranch(repo.defaultBranch || 'main');
+                              setPushCommitMessage(`Initial commit to ${repo.name}`);
+                              setPushToRemoteResult(null);
+                              setIsPushToRemoteModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-white/[0.05] transition-colors cursor-pointer"
+                            title="Đẩy mã nguồn từ máy tính lên kho này"
+                          >
+                            <UploadCloud className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const isCurrent = activeRepoPath && activeRepoPath.toLowerCase().replace(/\\/g, '/').endsWith(`/${repo.name.toLowerCase()}`);
+                              const localPath = matchingProject ? matchingProject.path : (isCurrent ? activeRepoPath : '');
+
+                              openCicdModalForRepo(
+                                localPath,
+                                repo.name,
+                                selectedAccountId,
+                                repo.fullName
+                              );
+                            }}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/[0.05] transition-colors cursor-pointer"
+                            title="Thiết lập CI/CD GitHub Actions"
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="pt-2.5 border-t border-[#1a1f2c] flex items-center justify-between">
-                      {/* Primary Clone & View Code actions */}
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                        onClick={() => {
-                          setCloneUrl(repo.cloneUrl);
-                          setCloneProjectName(repo.name);
-                          setCloneDestPath(`D:\\Projects\\${repo.name}`);
-                          setIsCloneModalOpen(true);
-                        }}
-                        className="px-2.5 py-1 rounded-md bg-[#161a26] hover:bg-[#1d2232] text-slate-200 border border-[#212738] text-[11px] font-medium flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
-                        title="Sao chép kho lưu trữ về máy tính (Clone)"
-                      >
-                        <DownloadCloud className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Clone</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleOpenCodeViewerCloud(repo)}
-                        className="px-2.5 py-1 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/40 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
-                        title="Duyệt cây thư mục và xem mã nguồn kho lưu trữ này trên GitHub"
-                      >
-                        <Code className="w-3.5 h-3.5 text-sky-400" />
-                        <span>Xem Code</span>
-                      </button>
-                    </div>
-
-                      {/* Secondary actions */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPushTargetRepo(repo);
-                            setPushLocalPath(activeRepoPath || 'D:\\ToolTienich');
-                            setPushBranch(repo.defaultBranch || 'main');
-                            setPushCommitMessage(`Initial commit to ${repo.name}`);
-                            setPushToRemoteResult(null);
-                            setIsPushToRemoteModalOpen(true);
-                          }}
-                          className="p-1.5 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-white/[0.05] transition-colors cursor-pointer"
-                          title="Đẩy mã nguồn từ máy tính lên kho này"
-                        >
-                          <UploadCloud className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            // Find matching local project or directory
-                            const matchingProject = projects.find(
-                              (p) =>
-                                p.name.toLowerCase() === repo.name.toLowerCase() ||
-                                p.path.toLowerCase().replace(/\\/g, '/').endsWith(`/${repo.name.toLowerCase()}`)
-                            );
-                            const isCurrent = activeRepoPath && activeRepoPath.toLowerCase().replace(/\\/g, '/').endsWith(`/${repo.name.toLowerCase()}`);
-                            const localPath = matchingProject ? matchingProject.path : (isCurrent ? activeRepoPath : '');
-
-                            openCicdModalForRepo(
-                              localPath,
-                              repo.name,
-                              selectedAccountId,
-                              repo.fullName
-                            );
-                          }}
-                          className="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/[0.05] transition-colors cursor-pointer"
-                          title="Thiết lập CI/CD GitHub Actions"
-                        >
-                          <Zap className="w-3.5 h-3.5" />
-                        </button>
-
-                        <a
-                          href={repo.htmlUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] transition-colors"
-                          title="Mở trên trình duyệt web"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {remoteRepos.length === 0 && (
                   <div className="col-span-3 py-16 text-center text-slate-500 text-xs italic border border-dashed border-[#1e2332] rounded-xl">
                     Không tìm thấy kho nào trên tài khoản này. Nhấn 'Tạo Kho Mới' để bắt đầu.

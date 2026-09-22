@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Net.Http;
@@ -395,6 +396,30 @@ public partial class MainWindow : Window
             }
         };
 
+        // Clear WebView2 disk cache so newly built frontend assets are always loaded immediately
+        try
+        {
+            await WebViewControl.CoreWebView2.Profile.ClearBrowsingDataAsync(
+                CoreWebView2BrowsingDataKinds.DiskCache |
+                CoreWebView2BrowsingDataKinds.CacheStorage |
+                CoreWebView2BrowsingDataKinds.ServiceWorkers);
+        }
+        catch { }
+
+        // Open external links (e.g. GitHub repos, releases) in user's default Windows browser
+        WebViewControl.CoreWebView2.NewWindowRequested += (sender, args) =>
+        {
+            args.Handled = true;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(args.Uri))
+                {
+                    Process.Start(new ProcessStartInfo(args.Uri) { UseShellExecute = true });
+                }
+            }
+            catch { }
+        };
+
         // Check if Vite Dev Server is alive on localhost:5173
         bool viteRunning = false;
         try
@@ -405,7 +430,7 @@ public partial class MainWindow : Window
         }
         catch { }
 
-        var targetUrl = viteRunning ? "http://localhost:5173" : $"{_apiServer.BaseUrl}/index.html";
+        var targetUrl = viteRunning ? "http://localhost:5173" : $"{_apiServer.BaseUrl}/index.html?v={DateTime.UtcNow.Ticks}";
         Log($"Navigating WebView2 to {targetUrl}");
         WebViewControl.CoreWebView2.Navigate(targetUrl);
     }

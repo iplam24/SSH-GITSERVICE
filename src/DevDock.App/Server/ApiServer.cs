@@ -122,18 +122,23 @@ public class ApiServer
         if (Directory.Exists(wwwroot))
         {
             var fileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwroot);
+            var staticOptions = new StaticFileOptions
+            {
+                FileProvider = fileProvider,
+                OnPrepareResponse = ctx =>
+                {
+                    ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                    ctx.Context.Response.Headers["Pragma"] = "no-cache";
+                    ctx.Context.Response.Headers["Expires"] = "0";
+                }
+            };
+
             app.UseDefaultFiles(new DefaultFilesOptions
             {
                 FileProvider = fileProvider
             });
-            app.UseStaticFiles(new StaticFileOptions
-            {
-                FileProvider = fileProvider
-            });
-            app.MapFallbackToFile("index.html", new StaticFileOptions
-            {
-                FileProvider = fileProvider
-            });
+            app.UseStaticFiles(staticOptions);
+            app.MapFallbackToFile("index.html", staticOptions);
         }
 
         _host = app;
@@ -250,6 +255,9 @@ public class ApiServer
 
             return Results.Ok(new { folder = selectedFolder, canceled = string.IsNullOrEmpty(selectedFolder) });
         });
+
+        api.MapGet("/system/metrics", async (ISystemMetricsService svc) =>
+            Results.Ok(await svc.GetCurrentMetricsAsync()));
 
         api.MapPost("/system/open-url", (OpenUrlRequest req) =>
         {

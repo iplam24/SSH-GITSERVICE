@@ -26,15 +26,32 @@ public class GitProviderService : IGitProviderService
         _httpClient = httpClientFactory.CreateClient();
     }
 
-    private async Task<(GitAccount Account, string Token)> GetAccountAndTokenAsync(string accountId)
+    private async Task<(GitAccount Account, string? Token)> GetAccountAndTokenAsync(string? accountId, bool requireToken = true)
     {
-        var account = await _settingsService.GetGitAccountByIdAsync(accountId)
-            ?? throw new InvalidOperationException($"Git account '{accountId}' not found");
-
-        var token = await _credentialService.GetSecretAsync($"git:account:{accountId}:token");
-        if (string.IsNullOrWhiteSpace(token))
+        GitAccount? account = null;
+        if (!string.IsNullOrWhiteSpace(accountId))
         {
-            throw new InvalidOperationException($"No token found for account '{account.Name}'. Please configure a Personal Access Token in Settings.");
+            account = await _settingsService.GetGitAccountByIdAsync(accountId);
+        }
+        if (account == null)
+        {
+            var accounts = await _settingsService.GetGitAccountsAsync();
+            account = accounts.FirstOrDefault(a => a.IsDefault) ?? accounts.FirstOrDefault();
+        }
+
+        if (account == null)
+        {
+            if (requireToken)
+            {
+                throw new InvalidOperationException("Không tìm thấy tài khoản Git. Vui lòng cấu hình tài khoản trong Cài đặt.");
+            }
+            return (new GitAccount { Provider = GitProvider.GitHub }, null);
+        }
+
+        var token = await _credentialService.GetSecretAsync($"git:account:{account.Id}:token");
+        if (requireToken && string.IsNullOrWhiteSpace(token))
+        {
+            throw new InvalidOperationException($"Chưa cấu hình Token cho tài khoản '{account.Name}'. Vui lòng cấu hình Personal Access Token trong Cài đặt.");
         }
 
         return (account, token);
@@ -665,15 +682,19 @@ Thumbs.db
         string? path = null,
         string? branch = null)
     {
-        var (account, token) = await GetAccountAndTokenAsync(accountId);
+        var (account, token) = await GetAccountAndTokenAsync(accountId, requireToken: false);
         var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
         var cleanPath = (path ?? string.Empty).Trim('/');
+
+        var fullRepo = repoFullName.Contains('/')
+            ? repoFullName
+            : (!string.IsNullOrWhiteSpace(account.Username) ? $"{account.Username}/{repoFullName}" : repoFullName);
 
         var encodedPath = string.IsNullOrEmpty(cleanPath)
             ? string.Empty
             : "/" + string.Join("/", cleanPath.Split('/').Select(Uri.EscapeDataString));
 
-        var url = $"{baseUrl}/repos/{repoFullName}/contents{encodedPath}";
+        var url = $"{baseUrl}/repos/{fullRepo}/contents{encodedPath}";
         if (!string.IsNullOrWhiteSpace(branch))
         {
             url += $"?ref={Uri.EscapeDataString(branch)}";
@@ -681,7 +702,10 @@ Thumbs.db
 
         var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
         req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
 
         var res = await _httpClient.SendAsync(req);
@@ -754,12 +778,16 @@ Thumbs.db
         string path,
         string? branch = null)
     {
-        var (account, token) = await GetAccountAndTokenAsync(accountId);
+        var (account, token) = await GetAccountAndTokenAsync(accountId, requireToken: false);
         var baseUrl = string.IsNullOrWhiteSpace(account.ApiBaseUrl) ? "https://api.github.com" : account.ApiBaseUrl.TrimEnd('/');
         var cleanPath = path.Trim('/');
 
+        var fullRepo = repoFullName.Contains('/')
+            ? repoFullName
+            : (!string.IsNullOrWhiteSpace(account.Username) ? $"{account.Username}/{repoFullName}" : repoFullName);
+
         var encodedPath = "/" + string.Join("/", cleanPath.Split('/').Select(Uri.EscapeDataString));
-        var url = $"{baseUrl}/repos/{repoFullName}/contents{encodedPath}";
+        var url = $"{baseUrl}/repos/{fullRepo}/contents{encodedPath}";
         if (!string.IsNullOrWhiteSpace(branch))
         {
             url += $"?ref={Uri.EscapeDataString(branch)}";
@@ -767,7 +795,10 @@ Thumbs.db
 
         var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.UserAgent.Add(new ProductInfoHeaderValue("DevDock", "1.0"));
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
         req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
 
         var res = await _httpClient.SendAsync(req);

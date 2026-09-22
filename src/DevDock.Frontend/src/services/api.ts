@@ -467,7 +467,7 @@ export const api = {
     req<SetupActionResult>('/api/git/install-winget', { method: 'POST' }),
 
   // Metrics & Commands
-  getMetrics: () => req<SystemMetrics>('/api/metrics'),
+  getMetrics: () => req<SystemMetrics>('/api/system/metrics'),
   getCommands: () => req<CommandPaletteItem[]>('/api/commands'),
 
   // HTTP Tool Proxy
