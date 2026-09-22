@@ -230,14 +230,15 @@ Trạng thái:      Operational / Production Ready`;
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto bg-[#080a0f] select-text min-h-0 flex flex-col scrollbar-thin">
-      {/* Background Decorative Ambient Glows */}
-      <div className="relative w-full overflow-hidden">
-        <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[850px] h-[380px] bg-gradient-to-b from-cyan-600/15 via-blue-500/10 to-transparent blur-3xl pointer-events-none" />
-        <div className="absolute top-[80px] right-[5%] w-[350px] h-[350px] bg-purple-600/10 blur-3xl pointer-events-none" />
-        <div className="absolute top-[180px] left-[5%] w-[350px] h-[350px] bg-emerald-600/10 blur-3xl pointer-events-none" />
+    <div className="w-full h-full overflow-y-auto bg-[#080a0f] select-text min-h-0 relative">
+      {/* Background Decorative Ambient Glows (isolated in fixed/absolute background layer) */}
+      <div className="absolute inset-0 pointer-events-none z-0 min-h-full">
+        <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[850px] h-[380px] bg-gradient-to-b from-cyan-600/15 via-blue-500/10 to-transparent blur-3xl" />
+        <div className="absolute top-[80px] right-[5%] w-[350px] h-[350px] bg-purple-600/10 blur-3xl" />
+        <div className="absolute top-[180px] left-[5%] w-[350px] h-[350px] bg-emerald-600/10 blur-3xl" />
+      </div>
 
-        <div className="max-w-5xl mx-auto px-6 pt-7 pb-12 relative z-10 flex flex-col gap-7">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-7 pb-16 relative z-10 flex flex-col gap-7">
 
           {/* ========================================================================= */}
           {/* 1. OFFICIAL APP LOGO & VERSION IDENTITY BANNER */}
@@ -690,7 +691,6 @@ Trạng thái:      Operational / Production Ready`;
             <span>Xây dựng trên nền tảng .NET 9 C#, React 18, TypeScript & Tailwind CSS 🇻🇳</span>
           </div>
         </div>
-      </div>
     </div>
   );
 };

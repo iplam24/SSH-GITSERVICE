@@ -897,7 +897,8 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       : 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
+    <div className="flex-1 flex flex-col overflow-hidden w-full h-full min-h-0 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-5 min-h-0">
       {/* Top Navigation & Server Summary */}
       <div className="flex flex-col gap-4 pb-4 border-b border-border">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2203,7 +2204,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* ========================================================================= */}
       {isNginxModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-xl max-w-2xl w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-surface border border-border rounded-xl max-w-2xl w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-sm font-bold text-text flex items-center gap-2">
                 <Globe className="w-4 h-4 text-accent" />
@@ -2337,7 +2338,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* ========================================================================= */}
       {isIssueSslModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-surface border border-border rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-sm font-bold text-text flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -2410,7 +2411,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* ========================================================================= */}
       {isCloneModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-xl max-w-lg w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-surface border border-border rounded-xl max-w-lg w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-sm font-bold text-text flex items-center gap-2">
                 <GitBranch className="w-4 h-4 text-accent" />
@@ -2498,7 +2499,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* ========================================================================= */}
       {isSystemdModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-surface border border-border rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-sm font-bold text-text flex items-center gap-2">
                 <Layers className="w-4 h-4 text-accent" />
@@ -2595,7 +2596,7 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
       {/* ========================================================================= */}
       {(processLogsModal.open || nginxLogModal.open) && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-xl max-w-3xl w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[85vh]">
+          <div className="bg-surface border border-border rounded-xl max-w-3xl w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h2 className="text-sm font-bold text-text flex items-center gap-2">
                 <FileText className="w-4 h-4 text-accent" />
@@ -2636,6 +2637,8 @@ export const SshControlCenter: React.FC<SshControlCenterProps> = ({
           </div>
         </div>
       )}
+    
+      </div>
     </div>
   );
 };

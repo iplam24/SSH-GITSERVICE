@@ -2627,7 +2627,8 @@ export const GitPage: React.FC<GitPageProps> = ({
 
         {/* ==================== TAB 3: BRANCHES & REMOTES ==================== */}
         {activeTab === 'branches' && (
-          <div className="flex-1 overflow-y-auto p-5 max-w-5xl mx-auto w-full flex flex-col gap-5 min-h-0 pr-1">
+          <div className="flex-1 overflow-y-auto w-full min-h-0 p-4 sm:p-5 pr-2">
+      <div className="max-w-5xl mx-auto w-full flex flex-col gap-5">
             {/* Section 1: Branches */}
             <div className="flex flex-col gap-3.5">
               <div className="flex items-center justify-between pb-3 border-b border-[#1a1e2a]">
@@ -2805,12 +2806,15 @@ export const GitPage: React.FC<GitPageProps> = ({
                 </table>
               </div>
             </div>
-          </div>
+          
+      </div>
+    </div>
         )}
 
         {/* ==================== TAB 4: TAGS & STASHES ==================== */}
         {activeTab === 'tags' && (
-          <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full flex flex-col gap-6 min-h-0 pr-1">
+          <div className="flex-1 overflow-y-auto w-full min-h-0 p-4 sm:p-6 pr-2">
+      <div className="max-w-5xl mx-auto w-full flex flex-col gap-6">
             {/* Tags Section */}
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between pb-3 border-b border-[#1E293B]">
@@ -2977,12 +2981,15 @@ export const GitPage: React.FC<GitPageProps> = ({
                 )}
               </div>
             </div>
-          </div>
+          
+      </div>
+    </div>
         )}
 
         {/* ==================== TAB 5: CLOUD REPOSITORIES ==================== */}
         {activeTab === 'cloud' && (
-          <div className="flex-1 overflow-y-auto p-5 max-w-6xl mx-auto w-full flex flex-col gap-4 min-h-0 pr-1">
+          <div className="flex-1 overflow-y-auto w-full min-h-0 p-4 sm:p-5 pr-2">
+      <div className="max-w-6xl mx-auto w-full flex flex-col gap-4">
             {/* Header & Account Selection */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#1a1e2a]">
               <div>
@@ -3238,7 +3245,9 @@ export const GitPage: React.FC<GitPageProps> = ({
                 )}
               </div>
             )}
-          </div>
+          
+      </div>
+    </div>
         )}
       </div>
 
@@ -3247,7 +3256,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 1. Modal: Tạo Nhánh Mới */}
       {isNewBranchModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <GitBranch className="w-4 h-4 text-emerald-400" />
               <span>Tạo Nhánh Mới</span>
@@ -3285,7 +3294,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 2. Modal: Đổi Tên Nhánh */}
       {isRenameBranchModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Edit3 className="w-4 h-4 text-emerald-400" />
               <span>Đổi Tên Nhánh '{branchToRename}'</span>
@@ -3322,7 +3331,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 3. Modal: Merge Branch */}
       {isMergeModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <GitMerge className="w-4 h-4 text-purple-400" />
               <span>Hòa nhập (Merge) vào nhánh '{repoStatus?.currentBranch}'</span>
@@ -3368,7 +3377,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 4. Modal: Rebase Branch */}
       {isRebaseModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <CornerDownRight className="w-4 h-4 text-amber-400" />
               <span>Tái thiết lập (Rebase) nhánh '{repoStatus?.currentBranch}'</span>
@@ -3414,7 +3423,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 5. Modal: Reset HEAD */}
       {isResetModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-rose-400" />
               <span>Đặt lại nhánh (Reset HEAD)</span>
@@ -3479,7 +3488,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 6. Modal: Thêm Remote Mới */}
       {isAddRemoteModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Cloud className="w-4 h-4 text-emerald-400" />
               <span>Thêm Git Remote Mới</span>
@@ -3529,7 +3538,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 7. Modal: Tạo Tag Mới */}
       {isCreateTagModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Tag className="w-4 h-4 text-emerald-400" />
               <span>Tạo Tag Phiên Bản</span>
@@ -3579,7 +3588,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 8. Modal: Lưu Tạm Mới (Stash) */}
       {isStashModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Archive className="w-4 h-4 text-amber-400" />
               <span>Lưu Tạm Thay Đổi (Stash)</span>
@@ -3617,7 +3626,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 9. Modal: Tạo Kho Mới Trên Cloud */}
       {isCreateCloudRepoModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Cloud className="w-4 h-4 text-blue-400" />
               <span>Tạo Kho Mới Trên Cloud Git Provider</span>
@@ -3689,7 +3698,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 10. Modal: Xuất Bản Kho Cục Bộ Lên Cloud */}
       {isPublishModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <UploadCloud className="w-4 h-4 text-emerald-400" />
               <span>Xuất Bản Kho Cục Bộ Lên Cloud</span>
@@ -3754,7 +3763,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 11. Modal: 1-Click Clone Repo */}
       {isCloneModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <DownloadCloud className="w-4 h-4 text-blue-400" />
               <span>1-Click Clone Kho Về Máy Tính</span>
@@ -4408,7 +4417,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 13. Modal: Khởi Tạo Git Cục Bộ (git init) */}
       {isInitRepoModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <FolderGit2 className="w-4 h-4 text-emerald-400" />
               <span>Khởi Tạo Kho Git Cục Bộ (git init)</span>
@@ -4745,7 +4754,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 15. Modal: Mở Thư Mục Mã Nguồn Cục Bộ (Open Custom Folder) */}
       {isOpenFolderModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                 <FolderGit2 className="w-4 h-4 text-blue-400" />
@@ -4845,7 +4854,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* 16. Modal: Quản Lý & Tự Động Sinh .gitignore */}
       {isGitIgnoreModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150 max-h-[90vh]">
+          <div className="bg-[#111827] border border-[#334155] rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -5020,7 +5029,7 @@ export const GitPage: React.FC<GitPageProps> = ({
       {/* Modal Tự động Stage & Commit (Thay thế browser window.confirm localhost:38420) */}
       {isAutoStageModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 select-none">
-          <div className="w-full max-w-md bg-[#0e121d] border border-[#20283f] rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+          <div className="w-full max-w-md bg-[#0e121d] border border-[#20283f] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#1b2236] bg-[#131826]">
               <div className="flex items-center gap-2.5">

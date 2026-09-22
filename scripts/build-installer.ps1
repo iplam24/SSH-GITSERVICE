@@ -36,6 +36,9 @@ if (-not (Test-Path $distDir)) {
 dotnet publish src/DevDock.App/DevDock.App.csproj -c Release -r win-x64 --self-contained false -o $distDir
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish DevDock.App failed." }
 
+# Remove stale hashed assets left over from previous frontend builds
+& (Join-Path $root "scripts\clean-stale-assets.ps1")
+
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # 3. Create payload.zip for installer

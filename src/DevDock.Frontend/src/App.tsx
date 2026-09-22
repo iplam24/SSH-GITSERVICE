@@ -5,6 +5,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { ExitConfirmModal } from './components/ExitConfirmModal';
 import { ConfirmProvider } from './context/ConfirmContext';
+import { LanguageProvider } from './context/LanguageContext';
 
 import { HomePage } from './pages/HomePage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -347,6 +348,7 @@ export const App: React.FC = () => {
   };
 
   return (
+    <LanguageProvider>
     <ConfirmProvider>
       <div className="h-screen w-screen flex flex-col bg-[#0c0d12] text-slate-100 overflow-hidden select-none font-sans">
       {/* Windows 11 Fluent Title Bar */}
@@ -360,6 +362,7 @@ export const App: React.FC = () => {
         onOpenAiHub={() => setCurrentRoute('ai')}
         onOpenGuide={() => setCurrentRoute('guide')}
         onOpenAbout={() => setCurrentRoute('about')}
+        onRequestExit={() => setIsExitModalOpen(true)}
       />
 
       {/* Main App Layout */}
@@ -533,5 +536,6 @@ export const App: React.FC = () => {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
     </ConfirmProvider>
+    </LanguageProvider>
   );
 };

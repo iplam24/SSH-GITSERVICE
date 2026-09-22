@@ -165,7 +165,8 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-5 max-w-7xl mx-auto w-full h-full min-h-0 gap-5 bg-[#0c0d12]">
+    <div className="flex-1 flex flex-col overflow-hidden w-full h-full min-h-0 bg-[#0c0d12] p-4 sm:p-5">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-5 min-h-0">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#1a1e2a]">
         <div>
@@ -403,7 +404,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
       {/* Add / Register Project Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
               <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <FolderGit2 className="w-5 h-5 text-emerald-400" />
@@ -545,6 +546,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };

@@ -1519,7 +1519,7 @@ Quy ước trả lời:
       {/* ========================================================================= */}
       {isAddWorkspaceOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0E1524] border border-[#253550] rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150">
+          <div className="bg-[#0E1524] border border-[#253550] rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E2A42] pb-3">
               <div className="flex items-center gap-2">
                 <FolderPlus className="w-5 h-5 text-cyan-400" />
@@ -1610,7 +1610,7 @@ Quy ước trả lời:
       {/* ========================================================================= */}
       {isScaffoldOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0E1524] border border-[#253550] rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col gap-5 animate-in zoom-in-95 duration-150">
+          <div className="bg-[#0E1524] border border-[#253550] rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col gap-5 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E2A42] pb-3">
               <div className="flex items-center gap-2">
                 <Box className="w-5 h-5 text-cyan-400" />

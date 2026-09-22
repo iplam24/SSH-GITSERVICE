@@ -93,7 +93,8 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ initialTool = 'json', onSh
       </div>
 
       {/* Tool Content Viewport */}
-      <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full min-h-0 pr-2">
+      <div className="flex-1 overflow-y-auto w-full min-h-0 p-4 sm:p-6 pr-2 sm:pr-3">
+      <div className="max-w-5xl mx-auto w-full flex flex-col gap-6">
         {activeTool === 'json' && <JsonTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
         {activeTool === 'jwt' && <JwtTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
         {activeTool === 'base64' && <Base64Tool onCopy={copyToClipboard} copiedKey={copiedKey} />}
@@ -105,7 +106,9 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ initialTool = 'json', onSh
         {activeTool === 'color' && <ColorTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
         {activeTool === 'diff' && <DiffTool />}
         {activeTool === 'http' && <HttpClientTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
+      
       </div>
+    </div>
     </div>
   );
 };

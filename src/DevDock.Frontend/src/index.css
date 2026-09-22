@@ -84,6 +84,7 @@
     border-color: #1e2230;
   }
   html, body {
+    overscroll-behavior: none;
     background-color: #0c0d12;
     color: #f1f5f9;
     user-select: none;
@@ -128,6 +129,21 @@
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Ensure child scroll containers isolate wheel events properly */
+[class*='overflow-y-auto'],
+[class*='overflow-auto'],
+[class*='overflow-x-auto'] {
+  overscroll-behavior: contain;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Make inputs and code selectable */

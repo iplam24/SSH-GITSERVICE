@@ -372,7 +372,8 @@ export const SshPage: React.FC<SshPageProps> = ({
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
+    <div className="flex-1 flex flex-col overflow-hidden w-full h-full min-h-0 bg-[#0c0d12] p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-5 min-h-0">
       {/* Top Header & View Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#1E293B]">
         <div>
@@ -910,7 +911,7 @@ export const SshPage: React.FC<SshPageProps> = ({
       {/* ==================== MODAL: ADD / EDIT SSH PROFILE ==================== */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
               <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Server className="w-5 h-5 text-accent" />
@@ -1137,7 +1138,7 @@ export const SshPage: React.FC<SshPageProps> = ({
       {/* ==================== MODAL: CREATE REMOTE DIRECTORY ==================== */}
       {isNewFolderModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
               <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                 <FolderPlus className="w-4 h-4 text-amber-400" />
@@ -1189,6 +1190,8 @@ export const SshPage: React.FC<SshPageProps> = ({
           </div>
         </div>
       )}
+    
+      </div>
     </div>
   );
 };

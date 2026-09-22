@@ -640,7 +640,8 @@ export const GuidePage: React.FC<{ onShowToast: (msg: string, type: 'success' | 
   const activeSection = sections.find((s) => s.id === selectedSectionId) || sections[0];
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden p-6 max-w-7xl mx-auto gap-5 min-h-0">
+    <div className="w-full h-full flex flex-col overflow-hidden p-4 sm:p-6 min-h-0">
+      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col gap-4 sm:gap-5 min-h-0">
       {/* Top Banner Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
@@ -769,6 +770,8 @@ export const GuidePage: React.FC<{ onShowToast: (msg: string, type: 'success' | 
             </div>
           </div>
         </div>
+      </div>
+    
       </div>
     </div>
   );

@@ -85,7 +85,7 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
       {dialog && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150 select-none">
           <div
-            className="w-full max-w-md bg-[#0e121d] border border-[#20283f] rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+            className="w-full max-w-md bg-[#0e121d] border border-[#20283f] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150"
             role="dialog"
             aria-modal="true"
           >
@@ -122,7 +122,7 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
             </div>
 
             {/* Body */}
-            <div className="p-5 flex flex-col gap-3 text-xs text-slate-300">
+            <div className="p-5 flex flex-col gap-3 text-xs text-slate-300 overflow-y-auto">
               <p className="text-slate-200 font-medium leading-relaxed">
                 {dialog.message}
               </p>

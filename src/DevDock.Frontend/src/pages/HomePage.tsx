@@ -52,7 +52,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto p-5 flex flex-col gap-5 max-w-7xl mx-auto bg-[#0c0d12] min-h-0">
+    <div className="w-full h-full overflow-y-auto p-4 sm:p-6 bg-[#0c0d12] min-h-0">
+      <div className="max-w-7xl mx-auto flex flex-col gap-5">
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1a1e2a]">
         <div>
@@ -437,6 +438,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

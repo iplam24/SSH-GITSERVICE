@@ -511,7 +511,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       </div>
 
       {/* Settings Viewport */}
-      <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full min-h-0 pr-2">
+      <div className="flex-1 overflow-y-auto w-full min-h-0 p-4 sm:p-6 pr-2 sm:pr-3">
+      <div className="max-w-4xl mx-auto w-full flex flex-col gap-6">
         {/* ==================== TAB 1: AI API PROVIDERS ==================== */}
         {activeTab === 'aiProviders' && (
           <div className="flex flex-col gap-5">
@@ -1629,12 +1630,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           </div>
         )}
+      
       </div>
+    </div>
 
       {/* ==================== MODAL: ADD / EDIT AI PROVIDER ==================== */}
       {isAiModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0E1424] border border-[#2A3B5E] rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#0E1424] border border-[#2A3B5E] rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E2A44] pb-3">
               <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-cyan-400" />
@@ -1812,7 +1815,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       {/* ==================== MODAL: ADD / EDIT GIT ACCOUNT & PAT TOKEN ==================== */}
       {isAccountModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0E1424] border border-[#2A3B5E] rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#0E1424] border border-[#2A3B5E] rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#1E2A44] pb-3">
               <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
                 <FolderGit2 className="w-4 h-4 text-emerald-400" />

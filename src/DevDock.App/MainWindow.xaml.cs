@@ -34,6 +34,17 @@ public partial class MainWindow : Window
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern int RegisterWindowMessage(string lpString);
 
+    // Used for native window drag from WebView2 context (DragMove() requires WPF MouseDown event)
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    // Must be called before SendMessage(WM_NCLBUTTONDOWN) to release WebView2 mouse capture
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    private const int WM_NCLBUTTONDOWN = 0x00A1;
+    private const int HTCAPTION = 2;
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
@@ -224,6 +235,8 @@ public partial class MainWindow : Window
 
         WebViewControl.CoreWebView2.Settings.IsStatusBarEnabled = false;
         WebViewControl.CoreWebView2.Settings.AreDevToolsEnabled = true;
+        // Enable CSS app-region: drag so the title bar can be dragged natively
+        WebViewControl.CoreWebView2.Settings.IsNonClientRegionSupportEnabled = true;
         WebViewControl.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
 
         // Intercept JavaScript alert/confirm dialogs so Chromium NEVER displays "127.0.0.1:38420 says"
@@ -347,10 +360,10 @@ public partial class MainWindow : Window
                     break;
                 case "window:drag":
                     if (WindowState == WindowState.Maximized)
-                    {
                         WindowState = WindowState.Normal;
-                    }
-                    DragMove();
+                    // ReleaseCapture releases WebView2's mouse capture so Windows can start drag
+                    ReleaseCapture();
+                    SendMessage(_windowHandle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
                     break;
             }
         }

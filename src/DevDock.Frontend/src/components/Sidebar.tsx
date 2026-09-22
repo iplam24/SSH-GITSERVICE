@@ -15,6 +15,7 @@ import {
   Heart,
 } from 'lucide-react';
 import { DevDockLogo } from './DevDockLogo';
+import { useLanguage } from '../context/LanguageContext';
 
 export type NavRoute = 'home' | 'projects' | 'git' | 'ai' | 'ssh' | 'terminal' | 'tools' | 'devops' | 'settings' | 'guide' | 'about';
 
@@ -33,25 +34,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   activeAiModel,
 }) => {
+  const { t } = useLanguage();
+
   const mainNav = [
-    { route: 'home' as NavRoute, label: 'Tổng quan', icon: Home, shortcut: 'Ctrl+1' },
-    { route: 'projects' as NavRoute, label: 'Dự án', icon: FolderGit2, shortcut: 'Ctrl+2' },
-    { route: 'git' as NavRoute, label: 'Quản lý Git', icon: GitBranch, shortcut: 'Ctrl+3' },
-    { route: 'ai' as NavRoute, label: 'Trung tâm AI', icon: Sparkles, shortcut: 'Ctrl+4', isAi: true },
+    { route: 'home' as NavRoute, label: t('nav.home'), icon: Home, shortcut: 'Ctrl+1' },
+    { route: 'projects' as NavRoute, label: t('nav.projects'), icon: FolderGit2, shortcut: 'Ctrl+2' },
+    { route: 'git' as NavRoute, label: t('nav.git'), icon: GitBranch, shortcut: 'Ctrl+3' },
+    { route: 'ai' as NavRoute, label: t('nav.ai'), icon: Sparkles, shortcut: 'Ctrl+4', isAi: true },
   ];
 
   const toolsNav = [
-    { route: 'ssh' as NavRoute, label: 'Kết nối SSH', icon: Server, shortcut: 'Ctrl+Shift+S' },
-    { route: 'terminal' as NavRoute, label: 'Terminal', icon: Terminal, shortcut: 'Ctrl+Shift+T' },
-    { route: 'tools' as NavRoute, label: 'Tiện ích Dev', icon: Wrench, shortcut: 'Ctrl+5' },
-    { route: 'devops' as NavRoute, label: 'Windows DevOps', icon: Sliders, shortcut: 'Ctrl+6' },
+    { route: 'ssh' as NavRoute, label: t('nav.ssh'), icon: Server, shortcut: 'Ctrl+Shift+S' },
+    { route: 'terminal' as NavRoute, label: t('nav.terminal'), icon: Terminal, shortcut: 'Ctrl+Shift+T' },
+    { route: 'tools' as NavRoute, label: t('nav.tools'), icon: Wrench, shortcut: 'Ctrl+5' },
+    { route: 'devops' as NavRoute, label: t('nav.devops'), icon: Sliders, shortcut: 'Ctrl+6' },
   ];
 
   const systemNav = [
-    { route: 'settings' as NavRoute, label: 'Cài đặt', icon: Settings, shortcut: 'Ctrl+,' },
-    { route: 'guide' as NavRoute, label: 'Hướng dẫn sử dụng', icon: BookOpen, shortcut: 'F1' },
-    { route: 'about' as NavRoute, label: 'Tác giả & Vibe', icon: Heart, shortcut: 'Ctrl+I' },
+    { route: 'settings' as NavRoute, label: t('nav.settings'), icon: Settings, shortcut: 'Ctrl+,' },
+    { route: 'guide' as NavRoute, label: t('nav.guide'), icon: BookOpen, shortcut: 'F1' },
+    { route: 'about' as NavRoute, label: t('nav.about'), icon: Heart, shortcut: 'Ctrl+I' },
   ];
+
 
   const renderNavGroup = (items: typeof mainNav) => (
     <div className="flex flex-col gap-0.5">
@@ -106,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }`}
     >
       {/* Navigation Sections */}
-      <div className="py-2.5 px-2 flex flex-col gap-2.5">
+      <div className="flex-1 overflow-y-auto min-h-0 py-2.5 px-2 flex flex-col gap-2.5">
         {renderNavGroup(mainNav)}
 
         <div className="h-[1px] bg-[#1a1e2a] mx-1" />

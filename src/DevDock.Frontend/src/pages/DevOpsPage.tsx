@@ -184,7 +184,8 @@ const PortInspectorTab: React.FC<{
   }, [ports]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
+    <div className="flex-1 overflow-hidden flex flex-col w-full h-full p-4 sm:p-6 min-h-0">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-5 min-h-0">
       {/* Top Bar: Search, Quick Filters & Metrics */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Search Box */}
@@ -382,7 +383,7 @@ const PortInspectorTab: React.FC<{
       {/* Kill Confirmation Modal */}
       {selectedPortForKill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-[#0f121a] border border-[#23293a] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#0f121a] border border-[#23293a] rounded-xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 text-rose-400">
               <div className="p-2 rounded-lg bg-rose-500/15 border border-rose-500/30">
                 <ShieldAlert className="w-5 h-5" />
@@ -439,6 +440,8 @@ const PortInspectorTab: React.FC<{
           </div>
         </div>
       )}
+    
+      </div>
     </div>
   );
 };
@@ -608,7 +611,8 @@ const HostsManagerTab: React.FC<{
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
+    <div className="flex-1 overflow-hidden flex flex-col w-full h-full p-4 sm:p-6 min-h-0">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-5 min-h-0">
       {/* Informational Banner */}
       <div className="p-3.5 rounded-xl bg-blue-950/30 border border-blue-800/30 text-xs text-slate-300 flex items-start gap-3">
         <Globe className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
@@ -789,7 +793,7 @@ const HostsManagerTab: React.FC<{
       {/* Add / Edit Modal */}
       {isEditModalOpen && editingEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-[#0f121a] border border-[#23293a] rounded-xl max-w-lg w-full p-5 shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#0f121a] border border-[#23293a] rounded-xl max-w-lg w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#1a1e2a]">
               <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
                 <Globe className="w-4 h-4 text-accent" />
@@ -879,6 +883,8 @@ const HostsManagerTab: React.FC<{
           </div>
         </div>
       )}
+    
+      </div>
     </div>
   );
 };
@@ -965,7 +971,8 @@ const EnvironmentStudioTab: React.FC<{
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden p-6 max-w-7xl mx-auto w-full gap-5 min-h-0">
+    <div className="flex-1 overflow-hidden flex flex-col w-full h-full p-4 sm:p-6 min-h-0">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-5 min-h-0">
       {/* Sub-tab switcher */}
       <div className="flex items-center justify-between border-b border-[#1a1e2a] pb-3">
         <div className="flex items-center gap-2">
@@ -1320,6 +1327,8 @@ const EnvironmentStudioTab: React.FC<{
           )}
         </div>
       )}
+    
+      </div>
     </div>
   );
 };

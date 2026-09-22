@@ -1,8 +1,9 @@
 import React from 'react';
-import { Search, Minus, Square, X, Cpu, HardDrive, Sparkles, BookOpen, Heart } from 'lucide-react';
+import { Search, Minus, Square, X, Cpu, HardDrive, Sparkles, BookOpen, Heart, Globe } from 'lucide-react';
 import { windowControls } from '../services/api';
 import { SystemMetrics } from '../types';
 import { DevDockLogo } from './DevDockLogo';
+import { useLanguage } from '../context/LanguageContext';
 
 interface TitleBarProps {
   metrics: SystemMetrics | null;
@@ -11,6 +12,7 @@ interface TitleBarProps {
   onOpenAiHub?: () => void;
   onOpenGuide?: () => void;
   onOpenAbout?: () => void;
+  onRequestExit?: () => void;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
@@ -20,15 +22,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onOpenAiHub,
   onOpenGuide,
   onOpenAbout,
+  onRequestExit,
 }) => {
+  const { lang, toggleLang, t } = useLanguage();
   return (
     <header
       className="h-9 bg-[#0a0c10] border-b border-[#1a1e2a] flex items-center justify-between px-3 select-none flex-shrink-0 z-50 transition-colors"
-      onMouseDown={(e) => {
-        // Drag window if not clicked on interactive elements
-        if ((e.target as HTMLElement).closest('button, input, a')) return;
-        windowControls.drag();
-      }}
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Left: Brand */}
       <div className="flex items-center gap-2.5">
@@ -43,10 +43,11 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         </div>
       </div>
 
-      {/* Center: Command Palette Trigger (Raycast / Modern Dev Tool style) */}
+      {/* Center: Command Palette — no-drag so click works */}
       <button
         type="button"
         onClick={onOpenCommandPalette}
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         className="hidden sm:flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-md bg-[#12151f] hover:bg-[#171b26] border border-[#1e2332] text-slate-400 text-xs transition-all duration-150 group w-44 md:w-60 lg:w-72 max-w-sm justify-between shadow-subtle hover:border-slate-600 cursor-pointer"
       >
         <div className="flex items-center gap-2 overflow-hidden">
@@ -58,9 +59,11 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         </kbd>
       </button>
 
-      {/* Right: AI badge, Metrics chip & Controls */}
-      <div className="flex items-center gap-2">
-        {/* Active AI Provider Chip */}
+      {/* Right: AI badge, Metrics chip & Controls — no-drag so buttons work */}
+      <div
+        className="flex items-center gap-2"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
         {activeAiModel && (
           <button
             type="button"
@@ -73,7 +76,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           </button>
         )}
 
-        {/* Guide / Handbook Trigger */}
         {onOpenGuide && (
           <button
             type="button"
@@ -86,7 +88,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           </button>
         )}
 
-        {/* Author & Vibe Trigger */}
         {onOpenAbout && (
           <button
             type="button"
@@ -99,7 +100,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           </button>
         )}
 
-        {/* System Telemetry Chips */}
         {metrics && (
           <div className="hidden sm:flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-[#12151f] border border-[#1e2332] text-[10px] font-mono text-slate-400">
             <div className="flex items-center gap-1.5">
@@ -120,9 +120,18 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         <div className="flex items-center -mr-2">
           <button
             type="button"
+            onClick={toggleLang}
+            className="h-8 px-2 flex items-center gap-1 text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors text-[10px] font-mono"
+            title={lang === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
+          >
+            <Globe className="w-3 h-3" />
+            <span>{lang === 'vi' ? 'EN' : 'VI'}</span>
+          </button>
+          <button
+            type="button"
             onClick={windowControls.minimize}
             className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors"
-            title="Thu nhỏ"
+            title={t('titlebar.minimize')}
           >
             <Minus className="w-3.5 h-3.5" />
           </button>
@@ -130,15 +139,15 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             type="button"
             onClick={windowControls.maximize}
             className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors"
-            title="Phóng to"
+            title={t('titlebar.maximize')}
           >
             <Square className="w-3 h-3" />
           </button>
           <button
             type="button"
-            onClick={windowControls.close}
+            onClick={onRequestExit ?? windowControls.close}
             className="w-10 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-[#C42B1C] transition-colors"
-            title="Đóng"
+            title={t('titlebar.close')}
           >
             <X className="w-3.5 h-3.5" />
           </button>
