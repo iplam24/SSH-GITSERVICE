@@ -70,6 +70,11 @@ import {
   GithubReleaseItem,
   RepoFileNode,
   RepoFileContentResult,
+  DockerContainerItem,
+  DockerImageItem,
+  DockerCommandResult,
+  DockerAvailabilityResult,
+  PluginManifest,
 } from '../types';
 
 const API_BASE = window.location.port === '5173' ? 'http://127.0.0.1:38420' : '';
@@ -567,6 +572,54 @@ export const api = {
       body: JSON.stringify({ url }),
     }).catch(() => {});
   },
+
+  // ------------------ PLUGINS ------------------
+  getPlugins: () => req<PluginManifest[]>('/api/plugins'),
+
+  // ------------------ DOCKER (real CLI) ------------------
+  getDockerAvailability: () => req<DockerAvailabilityResult>('/api/docker/availability'),
+  getDockerContainers: (all = true) =>
+    req<DockerContainerItem[]>(`/api/docker/containers?all=${all}`),
+  getDockerImages: () => req<DockerImageItem[]>('/api/docker/images'),
+  startDockerContainer: (containerId: string) =>
+    req<DockerCommandResult>('/api/docker/containers/start', {
+      method: 'POST',
+      body: JSON.stringify({ containerId }),
+    }),
+  stopDockerContainer: (containerId: string) =>
+    req<DockerCommandResult>('/api/docker/containers/stop', {
+      method: 'POST',
+      body: JSON.stringify({ containerId }),
+    }),
+  restartDockerContainer: (containerId: string) =>
+    req<DockerCommandResult>('/api/docker/containers/restart', {
+      method: 'POST',
+      body: JSON.stringify({ containerId }),
+    }),
+  removeDockerContainer: (id: string, force = false) =>
+    req<DockerCommandResult>('/api/docker/containers/remove', {
+      method: 'POST',
+      body: JSON.stringify({ id, force }),
+    }),
+  getDockerContainerLogs: (containerId: string, tail = 200) =>
+    req<DockerCommandResult>(
+      `/api/docker/containers/logs?containerId=${encodeURIComponent(containerId)}&tail=${tail}`
+    ),
+  removeDockerImage: (id: string, force = false) =>
+    req<DockerCommandResult>('/api/docker/images/remove', {
+      method: 'POST',
+      body: JSON.stringify({ id, force }),
+    }),
+  dockerComposeUp: (workingDirectory: string) =>
+    req<DockerCommandResult>('/api/docker/compose/up', {
+      method: 'POST',
+      body: JSON.stringify({ workingDirectory }),
+    }),
+  dockerComposeDown: (workingDirectory: string) =>
+    req<DockerCommandResult>('/api/docker/compose/down', {
+      method: 'POST',
+      body: JSON.stringify({ workingDirectory }),
+    }),
 
   // WebSocket Helpers
   getTerminalWsUrl: (sessionId: string) => {

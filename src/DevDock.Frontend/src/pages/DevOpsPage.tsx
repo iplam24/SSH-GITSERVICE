@@ -24,6 +24,13 @@ import {
   Edit2,
   Filter,
   Sparkles,
+  Container,
+  Play,
+  Square as SquareStop,
+  RotateCw,
+  Package,
+  FileStack,
+  ScrollText,
 } from 'lucide-react';
 import {
   PortListeningItem,
@@ -31,11 +38,14 @@ import {
   SystemEnvVariableItem,
   DotEnvCompareResult,
   DotEnvKeyDiff,
+  DockerContainerItem,
+  DockerImageItem,
+  DockerAvailabilityResult,
 } from '../types';
 import { api } from '../services/api';
 import { useConfirm } from '../context/ConfirmContext';
 
-type DevOpsTab = 'ports' | 'hosts' | 'env';
+type DevOpsTab = 'ports' | 'hosts' | 'env' | 'docker';
 
 interface DevOpsPageProps {
   initialTab?: DevOpsTab;
@@ -104,6 +114,19 @@ export const DevOpsPage: React.FC<DevOpsPageProps> = ({
             <Cpu className="w-3.5 h-3.5" />
             <span>Biến môi trường & .env Studio</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('docker')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTab === 'docker'
+                ? 'bg-accent/20 text-accent border border-accent/30 font-semibold'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Container className="w-3.5 h-3.5" />
+            <span>Docker & Containers</span>
+          </button>
         </div>
       </div>
 
@@ -112,6 +135,7 @@ export const DevOpsPage: React.FC<DevOpsPageProps> = ({
         {activeTab === 'ports' && <PortInspectorTab onShowToast={onShowToast} />}
         {activeTab === 'hosts' && <HostsManagerTab onShowToast={onShowToast} />}
         {activeTab === 'env' && <EnvironmentStudioTab onShowToast={onShowToast} />}
+        {activeTab === 'docker' && <DockerManagerTab onShowToast={onShowToast} onRunCommandInTerminal={onRunCommandInTerminal} />}
       </div>
     </div>
   );
@@ -1329,6 +1353,428 @@ const EnvironmentStudioTab: React.FC<{
       )}
     
       </div>
+    </div>
+  );
+};
+
+/* =========================================================================================
+ * 4. DOCKER & CONTAINERS TAB (real Docker CLI)
+ * ========================================================================================= */
+const DockerManagerTab: React.FC<{
+  onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+  onRunCommandInTerminal?: (cmd: string) => void;
+}> = ({ onShowToast, onRunCommandInTerminal }) => {
+  const [availability, setAvailability] = useState<DockerAvailabilityResult | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [view, setView] = useState<'containers' | 'images'>('containers');
+  const [containers, setContainers] = useState<DockerContainerItem[]>([]);
+  const [images, setImages] = useState<DockerImageItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [logs, setLogs] = useState<{ name: string; text: string } | null>(null);
+  const [search, setSearch] = useState('');
+  const [composeDir, setComposeDir] = useState('');
+  const [composeBusy, setComposeBusy] = useState(false);
+
+  const checkAvailability = async () => {
+    setChecking(true);
+    try {
+      const res = await api.getDockerAvailability();
+      setAvailability(res);
+      if (res.isAvailable && res.isDaemonRunning) {
+        await refreshAll();
+      }
+    } catch (err: any) {
+      setAvailability({
+        isAvailable: false,
+        isDaemonRunning: false,
+        version: '',
+        errorMessage: err.message || 'Không thể kiểm tra Docker',
+      });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const refreshAll = async () => {
+    setLoading(true);
+    try {
+      const [c, i] = await Promise.all([api.getDockerContainers(true), api.getDockerImages()]);
+      setContainers(c);
+      setImages(i);
+    } catch (err: any) {
+      onShowToast(err.message || 'Không thể tải dữ liệu Docker', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkAvailability();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const doAction = async (
+    id: string,
+    fn: () => Promise<{ success: boolean; error?: string | null; output: string }>,
+    successMsg: string
+  ) => {
+    setBusyId(id);
+    try {
+      const res = await fn();
+      if (res.success) {
+        onShowToast(successMsg, 'success');
+        await refreshAll();
+      } else {
+        onShowToast(res.error || 'Lệnh Docker thất bại', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi thực thi Docker', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleShowLogs = async (c: DockerContainerItem) => {
+    setBusyId(c.id);
+    try {
+      const res = await api.getDockerContainerLogs(c.id, 300);
+      setLogs({ name: c.name, text: res.success ? res.output || '(Không có log)' : res.error || 'Không lấy được log' });
+    } catch (err: any) {
+      onShowToast(err.message || 'Không lấy được log', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleComposeUp = async () => {
+    if (!composeDir.trim()) {
+      onShowToast('Nhập đường dẫn thư mục chứa docker-compose.yml', 'error');
+      return;
+    }
+    setComposeBusy(true);
+    try {
+      const res = await api.dockerComposeUp(composeDir.trim());
+      if (res.success) {
+        onShowToast('docker compose up -d thành công', 'success');
+        await refreshAll();
+      } else {
+        onShowToast(res.error || 'Compose up thất bại', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi compose up', 'error');
+    } finally {
+      setComposeBusy(false);
+    }
+  };
+
+  const handleComposeDown = async () => {
+    if (!composeDir.trim()) {
+      onShowToast('Nhập đường dẫn thư mục chứa docker-compose.yml', 'error');
+      return;
+    }
+    setComposeBusy(true);
+    try {
+      const res = await api.dockerComposeDown(composeDir.trim());
+      if (res.success) {
+        onShowToast('docker compose down thành công', 'success');
+        await refreshAll();
+      } else {
+        onShowToast(res.error || 'Compose down thất bại', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi compose down', 'error');
+    } finally {
+      setComposeBusy(false);
+    }
+  };
+
+  const filteredContainers = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return containers;
+    return containers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.image.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q) ||
+        c.status.toLowerCase().includes(q)
+    );
+  }, [containers, search]);
+
+  const filteredImages = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return images;
+    return images.filter(
+      (i) =>
+        i.repository.toLowerCase().includes(q) ||
+        i.tag.toLowerCase().includes(q) ||
+        i.id.toLowerCase().includes(q)
+    );
+  }, [images, search]);
+
+  // Docker unavailable state
+  if (!checking && availability && !availability.isAvailable) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="max-w-md text-center flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center">
+            <Container className="w-8 h-8 text-sky-400" />
+          </div>
+          <h3 className="text-base font-semibold text-slate-200">Docker chưa sẵn sàng</h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {availability.errorMessage || 'Không tìm thấy Docker CLI trên máy. Hãy cài đặt Docker Desktop.'}
+          </p>
+          <button
+            type="button"
+            onClick={checkAvailability}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium bg-sky-500/15 text-sky-400 border border-sky-500/30 hover:bg-sky-500/25 transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Kiểm tra lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-hidden flex flex-col w-full h-full p-4 sm:p-6 min-h-0">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 min-h-0">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 bg-[#12151f] p-1 rounded-lg border border-[#1e2332]">
+              <button
+                type="button"
+                onClick={() => setView('containers')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  view === 'containers' ? 'bg-accent/20 text-accent font-semibold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <FileStack className="w-3.5 h-3.5" />
+                Containers ({containers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('images')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  view === 'images' ? 'bg-accent/20 text-accent font-semibold' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                Images ({images.length})
+              </button>
+            </div>
+            {availability?.version && (
+              <span className="text-[10px] text-slate-500 font-mono hidden md:inline">
+                Docker {availability.version}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Tìm container / image..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-[#12151f] text-slate-100 placeholder-slate-500 text-xs pl-9 pr-4 py-2 rounded-lg border border-[#1e2332] focus:outline-none focus:border-accent w-56"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={refreshAll}
+              disabled={loading}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-[#12151f] text-slate-300 border border-[#1e2332] hover:text-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Làm mới
+            </button>
+          </div>
+        </div>
+
+        {/* Compose bar */}
+        <div className="flex items-center gap-2 bg-[#0f1218] border border-[#1e2332] rounded-lg p-2">
+          <FileStack className="w-4 h-4 text-slate-500 ml-1 shrink-0" />
+          <input
+            type="text"
+            placeholder="Đường dẫn thư mục docker-compose (ví dụ D:\myapp)"
+            value={composeDir}
+            onChange={(e) => setComposeDir(e.target.value)}
+            className="flex-1 bg-transparent text-xs text-slate-100 placeholder-slate-500 focus:outline-none px-1"
+          />
+          <button
+            type="button"
+            onClick={handleComposeUp}
+            disabled={composeBusy}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <Play className="w-3.5 h-3.5" />
+            Up -d
+          </button>
+          <button
+            type="button"
+            onClick={handleComposeDown}
+            disabled={composeBusy}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <SquareStop className="w-3.5 h-3.5" />
+            Down
+          </button>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin">
+          {view === 'containers' ? (
+            filteredContainers.length === 0 ? (
+              <div className="text-center text-xs text-slate-500 py-10">
+                {loading ? 'Đang tải...' : 'Không có container nào.'}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {filteredContainers.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-3 bg-[#0f1218] border border-[#1e2332] rounded-lg px-3 py-2.5"
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        c.isRunning ? 'bg-emerald-400' : 'bg-slate-600'
+                      }`}
+                      title={c.state}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-200 truncate">{c.name}</span>
+                        <span className="text-[10px] text-slate-500 font-mono truncate">{c.image}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate">
+                        {c.status} {c.ports ? `• ${c.ports}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {c.isRunning ? (
+                        <button
+                          type="button"
+                          disabled={busyId === c.id}
+                          onClick={() => doAction(c.id, () => api.stopDockerContainer(c.id), `Đã dừng ${c.name}`)}
+                          className="p-1.5 rounded-md text-amber-400 hover:bg-amber-500/15 transition-colors cursor-pointer disabled:opacity-40"
+                          title="Stop"
+                        >
+                          <SquareStop className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busyId === c.id}
+                          onClick={() => doAction(c.id, () => api.startDockerContainer(c.id), `Đã khởi động ${c.name}`)}
+                          className="p-1.5 rounded-md text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer disabled:opacity-40"
+                          title="Start"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busyId === c.id}
+                        onClick={() => doAction(c.id, () => api.restartDockerContainer(c.id), `Đã restart ${c.name}`)}
+                        className="p-1.5 rounded-md text-sky-400 hover:bg-sky-500/15 transition-colors cursor-pointer disabled:opacity-40"
+                        title="Restart"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === c.id}
+                        onClick={() => handleShowLogs(c)}
+                        className="p-1.5 rounded-md text-slate-300 hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-40"
+                        title="Logs"
+                      >
+                        <ScrollText className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === c.id}
+                        onClick={() => doAction(c.id, () => api.removeDockerContainer(c.id, true), `Đã xóa ${c.name}`)}
+                        className="p-1.5 rounded-md text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer disabled:opacity-40"
+                        title="Remove (force)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : filteredImages.length === 0 ? (
+            <div className="text-center text-xs text-slate-500 py-10">
+              {loading ? 'Đang tải...' : 'Không có image nào.'}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {filteredImages.map((img) => (
+                <div
+                  key={img.id + img.repository + img.tag}
+                  className="flex items-center gap-3 bg-[#0f1218] border border-[#1e2332] rounded-lg px-3 py-2.5"
+                >
+                  <Package className="w-4 h-4 text-slate-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-slate-200 truncate">
+                      {img.repository}:{img.tag}
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate font-mono">
+                      {img.id.replace('sha256:', '').slice(0, 12)} • {img.size} • {img.createdSince}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busyId === img.id}
+                    onClick={() =>
+                      doAction(img.id, () => api.removeDockerImage(img.id, true), `Đã xóa image ${img.repository}:${img.tag}`)
+                    }
+                    className="p-1.5 rounded-md text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+                    title="Remove image (force)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Logs modal */}
+      {logs && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setLogs(null)}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[80vh] bg-[#0B0F17] border border-[#334155] rounded-xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#1E293B]">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                <ScrollText className="w-4 h-4 text-accent" />
+                Logs: {logs.name}
+              </div>
+              <button
+                type="button"
+                onClick={() => setLogs(null)}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto p-4 text-[11px] text-slate-300 font-mono whitespace-pre-wrap scrollbar-thin">
+              {logs.text}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

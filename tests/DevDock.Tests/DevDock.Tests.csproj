@@ -14,6 +14,8 @@
     <ProjectReference Include="..\..\src\DevDock.Git\DevDock.Git.csproj" />
     <ProjectReference Include="..\..\src\DevDock.Projects\DevDock.Projects.csproj" />
     <ProjectReference Include="..\..\src\DevDock.Settings\DevDock.Settings.csproj" />
+    <ProjectReference Include="..\..\src\DevDock.Plugins\DevDock.Plugins.csproj" />
+    <ProjectReference Include="..\..\src\DevDock.SSH\DevDock.SSH.csproj" />
   </ItemGroup>
 
   <ItemGroup>

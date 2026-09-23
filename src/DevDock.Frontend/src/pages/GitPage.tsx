@@ -89,6 +89,8 @@ interface GitPageProps {
   onSelectRepoPath: (path: string) => void;
   onRefreshProjects?: () => void;
   onOpenTerminal?: (path: string) => void;
+  pendingGitAction?: string | null;
+  onClearPendingGitAction?: () => void;
   onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
@@ -100,6 +102,8 @@ export const GitPage: React.FC<GitPageProps> = ({
   onSelectRepoPath,
   onRefreshProjects,
   onOpenTerminal,
+  pendingGitAction,
+  onClearPendingGitAction,
   onShowToast,
 }) => {
   const confirm = useConfirm();
@@ -318,6 +322,55 @@ export const GitPage: React.FC<GitPageProps> = ({
       }).catch(() => {});
     }
   }, [propGitAccounts]);
+
+  // Consume pending git action triggered from Command Palette
+  useEffect(() => {
+    if (!pendingGitAction) return;
+
+    const runAction = async () => {
+      if (!activeRepoPath) {
+        onShowToast('Chưa chọn kho Git đang hoạt động', 'error');
+        onClearPendingGitAction?.();
+        return;
+      }
+      switch (pendingGitAction) {
+        case 'stage_all':
+          setActiveTab('changes');
+          await handleStageAll();
+          break;
+        case 'unstage_all':
+          setActiveTab('changes');
+          await handleUnstageAll();
+          break;
+        case 'commit':
+          setActiveTab('changes');
+          onShowToast('Nhập tiêu đề commit rồi bấm Commit', 'info');
+          break;
+        case 'push':
+          await handlePush();
+          break;
+        case 'pull':
+          await handlePull();
+          break;
+        case 'fetch':
+          await handleFetch();
+          break;
+        case 'stash':
+          setActiveTab('changes');
+          setIsStashModalOpen(true);
+          break;
+        case 'stash_pop':
+          await handlePopStash();
+          break;
+        default:
+          break;
+      }
+      onClearPendingGitAction?.();
+    };
+
+    runAction();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingGitAction, activeRepoPath]);
 
   const loadRepoData = async (path: string) => {
     if (!path) return;

@@ -90,6 +90,7 @@ public class ApiServer
         builder.Services.AddSingleton<ISystemMetricsService, SystemMetricsService>();
         builder.Services.AddSingleton<ICommandService, CommandService>();
         builder.Services.AddSingleton<IDevOpsService, DevOpsService>();
+        builder.Services.AddSingleton<IDockerService, DockerService>();
         builder.Services.AddSingleton<IPluginManager, DevDock.Plugins.PluginManager>();
         builder.Services.AddHttpClient();
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -1267,8 +1268,43 @@ public class ApiServer
         api.MapGet("/commands", async (ICommandService svc) =>
             Results.Ok(await svc.GetCommandsAsync()));
 
+        // ------------------ PLUGINS ------------------
         api.MapGet("/plugins", (IPluginManager mgr) =>
             Results.Ok(mgr.GetLoadedPlugins().Select(p => p.Manifest)));
+
+        // ------------------ DOCKER (real CLI) ------------------
+        api.MapGet("/docker/availability", async (IDockerService svc) =>
+            Results.Ok(await svc.CheckAvailabilityAsync()));
+
+        api.MapGet("/docker/containers", async (bool? all, IDockerService svc) =>
+            Results.Ok(await svc.ListContainersAsync(all ?? true)));
+
+        api.MapGet("/docker/images", async (IDockerService svc) =>
+            Results.Ok(await svc.ListImagesAsync()));
+
+        api.MapPost("/docker/containers/start", async (DockerContainerRequest req, IDockerService svc) =>
+            Results.Ok(await svc.StartContainerAsync(req.ContainerId)));
+
+        api.MapPost("/docker/containers/stop", async (DockerContainerRequest req, IDockerService svc) =>
+            Results.Ok(await svc.StopContainerAsync(req.ContainerId)));
+
+        api.MapPost("/docker/containers/restart", async (DockerContainerRequest req, IDockerService svc) =>
+            Results.Ok(await svc.RestartContainerAsync(req.ContainerId)));
+
+        api.MapPost("/docker/containers/remove", async (DockerRemoveRequest req, IDockerService svc) =>
+            Results.Ok(await svc.RemoveContainerAsync(req.Id, req.Force)));
+
+        api.MapGet("/docker/containers/logs", async (string containerId, int? tail, IDockerService svc) =>
+            Results.Ok(await svc.GetContainerLogsAsync(containerId, tail ?? 200)));
+
+        api.MapPost("/docker/images/remove", async (DockerRemoveRequest req, IDockerService svc) =>
+            Results.Ok(await svc.RemoveImageAsync(req.Id, req.Force)));
+
+        api.MapPost("/docker/compose/up", async (DockerComposeRequest req, IDockerService svc) =>
+            Results.Ok(await svc.ComposeUpAsync(req.WorkingDirectory)));
+
+        api.MapPost("/docker/compose/down", async (DockerComposeRequest req, IDockerService svc) =>
+            Results.Ok(await svc.ComposeDownAsync(req.WorkingDirectory)));
 
         // ------------------ HTTP CLIENT DEVELOPER TOOL PROXY ------------------
         api.MapPost("/tools/http-request", async (HttpRequestProxyModel req, IHttpClientFactory clientFactory) =>
@@ -1410,3 +1446,6 @@ public record SshServerGitCloneRequest(string RepoUrl, string TargetDir, string 
 public record SshServerGitPullRequest(string TargetDir, string? Branch = "main", string? PostDeployCommand = null);
 public record SshServerGitStatusRequest(string TargetDir);
 public record OpenUrlRequest(string? Url);
+public record DockerContainerRequest(string ContainerId);
+public record DockerRemoveRequest(string Id, bool Force = false);
+public record DockerComposeRequest(string WorkingDirectory);

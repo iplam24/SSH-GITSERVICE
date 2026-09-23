@@ -36,6 +36,8 @@ interface TerminalPageProps {
   onClearPendingRunCommand?: () => void;
   pendingCwd?: string | null;
   onClearPendingCwd?: () => void;
+  pendingSplit?: 'horizontal' | 'vertical' | null;
+  onClearPendingSplit?: () => void;
   isPageVisible?: boolean;
   terminalFontSize?: number;
   terminalFontFamily?: string;
@@ -56,6 +58,8 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   onClearPendingRunCommand,
   pendingCwd,
   onClearPendingCwd,
+  pendingSplit,
+  onClearPendingSplit,
   isPageVisible = true,
   terminalFontSize = 13,
   terminalFontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
@@ -143,6 +147,14 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
       onClearPendingSsh?.();
     }
   }, [pendingSshProfileId]);
+
+  // Handle pending split-pane request from Command Palette
+  useEffect(() => {
+    if (pendingSplit === 'horizontal' || pendingSplit === 'vertical') {
+      setSplitMode(pendingSplit);
+      onClearPendingSplit?.();
+    }
+  }, [pendingSplit]);
 
   const handleCreateLocalTerminal = async (
     shellType: TerminalShellType = defaultShell || 'PowerShell',

@@ -3,9 +3,23 @@ using DevDock.Core.Plugins;
 
 namespace DevDock.Plugins;
 
+internal sealed class PluginCommandRegistry : IPluginCommandRegistry
+{
+    public List<CommandPaletteItem> Commands { get; } = new();
+
+    public void RegisterCommand(CommandPaletteItem command)
+    {
+        if (command != null && !string.IsNullOrWhiteSpace(command.Id))
+        {
+            Commands.Add(command);
+        }
+    }
+}
+
 public class PluginManager : IPluginManager
 {
     private readonly List<IDevDockPlugin> _plugins = new();
+    private readonly List<CommandPaletteItem> _pluginCommands = new();
     private readonly IServiceProvider _serviceProvider;
 
     public PluginManager(IServiceProvider serviceProvider)
@@ -16,21 +30,29 @@ public class PluginManager : IPluginManager
     public async Task LoadPluginsAsync()
     {
         _plugins.Clear();
+        _pluginCommands.Clear();
 
         // Built-in Sample Plugins demonstrating the extension points
         _plugins.Add(new MinecraftPlugin());
         _plugins.Add(new DockerPlugin());
+
+        var registry = new PluginCommandRegistry();
 
         foreach (var plugin in _plugins)
         {
             if (plugin.Manifest.Enabled)
             {
                 await plugin.InitializeAsync(_serviceProvider);
+                await plugin.RegisterCommandsAsync(registry);
             }
         }
+
+        _pluginCommands.AddRange(registry.Commands);
     }
 
     public IReadOnlyList<IDevDockPlugin> GetLoadedPlugins() => _plugins.AsReadOnly();
+
+    public IReadOnlyList<CommandPaletteItem> GetPluginCommands() => _pluginCommands.AsReadOnly();
 }
 
 public class MinecraftPlugin : IDevDockPlugin
@@ -56,6 +78,7 @@ public class MinecraftPlugin : IDevDockPlugin
             Title = "Minecraft: Check Server Health",
             Subtitle = "Ping registered Minecraft server instances",
             Category = "Plugins",
+            Icon = "box",
             ActionType = "plugin_action",
             Payload = new() { ["pluginId"] = Manifest.Id, ["action"] = "status" }
         });
@@ -65,6 +88,7 @@ public class MinecraftPlugin : IDevDockPlugin
             Title = "Minecraft: Open RCON Console",
             Subtitle = "Direct remote command execution",
             Category = "Plugins",
+            Icon = "box",
             ActionType = "plugin_action",
             Payload = new() { ["pluginId"] = Manifest.Id, ["action"] = "rcon" }
         });
@@ -81,7 +105,7 @@ public class DockerPlugin : IDevDockPlugin
         Id = "devdock.plugin.docker",
         Name = "Docker & Containers",
         Version = "1.0.0",
-        Description = "Manage Docker containers, images, and docker-compose stacks.",
+        Description = "Manage Docker containers, images, and docker-compose stacks via the local Docker CLI.",
         Author = "DevDock",
         Icon = "container",
         Enabled = true
@@ -95,10 +119,21 @@ public class DockerPlugin : IDevDockPlugin
         {
             Id = "docker:containers",
             Title = "Docker: List Containers",
-            Subtitle = "View active and stopped containers",
+            Subtitle = "View active and stopped containers (docker ps)",
             Category = "Plugins",
+            Icon = "container",
             ActionType = "plugin_action",
             Payload = new() { ["pluginId"] = Manifest.Id, ["action"] = "containers" }
+        });
+        registry.RegisterCommand(new CommandPaletteItem
+        {
+            Id = "docker:images",
+            Title = "Docker: List Images",
+            Subtitle = "View downloaded images (docker images)",
+            Category = "Plugins",
+            Icon = "container",
+            ActionType = "plugin_action",
+            Payload = new() { ["pluginId"] = Manifest.Id, ["action"] = "images" }
         });
         registry.RegisterCommand(new CommandPaletteItem
         {
@@ -106,6 +141,7 @@ public class DockerPlugin : IDevDockPlugin
             Title = "Docker: Compose Up Active Project",
             Subtitle = "docker compose up -d",
             Category = "Plugins",
+            Icon = "container",
             ActionType = "plugin_action",
             Payload = new() { ["pluginId"] = Manifest.Id, ["action"] = "compose_up" }
         });

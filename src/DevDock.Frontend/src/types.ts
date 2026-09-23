@@ -878,3 +878,50 @@ export interface RepoFileContentResult {
   errorMessage?: string | null;
 }
 
+// ------------------ DOCKER ------------------
+export interface DockerContainerItem {
+  id: string;
+  name: string;
+  image: string;
+  command: string;
+  status: string;
+  state: string;
+  ports: string;
+  createdAt: string;
+  runningFor: string;
+  size: string;
+  isRunning: boolean;
+}
+
+export interface DockerImageItem {
+  id: string;
+  repository: string;
+  tag: string;
+  createdSince: string;
+  size: string;
+}
+
+export interface DockerCommandResult {
+  success: boolean;
+  output: string;
+  error?: string | null;
+  exitCode: number;
+}
+
+export interface DockerAvailabilityResult {
+  isAvailable: boolean;
+  isDaemonRunning: boolean;
+  version: string;
+  errorMessage?: string | null;
+}
+
+export interface PluginManifest {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  icon?: string | null;
+  enabled: boolean;
+}
+

@@ -1,4 +1,5 @@
 using DevDock.Core.Models;
+using DevDock.Core.Plugins;
 using DevDock.Core.Services;
 
 namespace DevDock.Settings.Services;
@@ -7,11 +8,13 @@ public class CommandService : ICommandService
 {
     private readonly IProjectService _projectService;
     private readonly ISshService _sshService;
+    private readonly IPluginManager _pluginManager;
 
-    public CommandService(IProjectService projectService, ISshService sshService)
+    public CommandService(IProjectService projectService, ISshService sshService, IPluginManager pluginManager)
     {
         _projectService = projectService;
         _sshService = sshService;
+        _pluginManager = pluginManager;
     }
 
     public async Task<List<CommandPaletteItem>> GetCommandsAsync()
@@ -125,6 +128,13 @@ public class CommandService : ICommandService
                 Payload = new() { ["profileId"] = s.Id }
             });
         }
+
+        // Plugin-provided commands (Docker, Minecraft, ...)
+        try
+        {
+            items.AddRange(_pluginManager.GetPluginCommands());
+        }
+        catch { }
 
         return items;
     }

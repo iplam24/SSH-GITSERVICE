@@ -68,11 +68,13 @@ export const App: React.FC = () => {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [commands, setCommands] = useState<CommandPaletteItem[]>([]);
   const [selectedTool, setSelectedTool] = useState<ToolType>('json');
-  const [selectedDevopsTab, setSelectedDevopsTab] = useState<'ports' | 'hosts' | 'env'>('ports');
+  const [selectedDevopsTab, setSelectedDevopsTab] = useState<'ports' | 'hosts' | 'env' | 'docker'>('ports');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [pendingSshProfileId, setPendingSshProfileId] = useState<string | null>(null);
   const [pendingRunCommand, setPendingRunCommand] = useState<string | null>(null);
   const [pendingTerminalCwd, setPendingTerminalCwd] = useState<string | null>(null);
+  const [pendingGitAction, setPendingGitAction] = useState<string | null>(null);
+  const [pendingTerminalSplit, setPendingTerminalSplit] = useState<'horizontal' | 'vertical' | null>(null);
 
   const activeAiProvider = useMemo(() => {
     return aiProviders.find((p) => p.isDefault) || aiProviders[0] || null;
@@ -297,7 +299,7 @@ export const App: React.FC = () => {
       if (cmd.payload.tool) {
         setSelectedTool(cmd.payload.tool as ToolType);
       }
-      if (cmd.payload.tab && (cmd.payload.tab === 'ports' || cmd.payload.tab === 'hosts' || cmd.payload.tab === 'env')) {
+      if (cmd.payload.tab && (cmd.payload.tab === 'ports' || cmd.payload.tab === 'hosts' || cmd.payload.tab === 'env' || cmd.payload.tab === 'docker')) {
         setSelectedDevopsTab(cmd.payload.tab as any);
       }
     } else if (cmd.actionType === 'devops_flush_dns') {
@@ -326,9 +328,64 @@ export const App: React.FC = () => {
       setCurrentRoute('terminal');
     } else if (cmd.actionType === 'terminal') {
       setCurrentRoute('terminal');
+    } else if (cmd.actionType === 'git_action') {
+      if (cmd.payload?.action) {
+        setPendingGitAction(cmd.payload.action);
+      }
+      setCurrentRoute('git');
+    } else if (cmd.actionType === 'terminal_split') {
+      const dir = cmd.payload?.direction;
+      if (dir === 'horizontal' || dir === 'vertical') {
+        setPendingTerminalSplit(dir);
+      }
+      setCurrentRoute('terminal');
+    } else if (cmd.actionType === 'plugin_action') {
+      handlePluginAction(cmd);
     } else if (cmd.actionType === 'setup_wizard' || cmd.id === 'setup:wizard') {
       setIsSetupOpen(true);
     }
+  };
+
+  const handlePluginAction = async (cmd: CommandPaletteItem) => {
+    const pluginId = cmd.payload?.pluginId;
+    const action = cmd.payload?.action;
+
+    // Docker plugin — thực thi Docker CLI thật qua backend
+    if (pluginId === 'devdock.plugin.docker') {
+      if (action === 'containers') {
+        setSelectedDevopsTab('docker');
+        setCurrentRoute('devops');
+        return;
+      }
+      if (action === 'images') {
+        setSelectedDevopsTab('docker');
+        setCurrentRoute('devops');
+        return;
+      }
+      if (action === 'compose_up') {
+        try {
+          const avail = await api.getDockerAvailability();
+          if (!avail.isAvailable) {
+            showToast(avail.errorMessage || 'Docker chưa sẵn sàng trên máy', 'error');
+            return;
+          }
+          setSelectedDevopsTab('docker');
+          setCurrentRoute('devops');
+          showToast('Mở Docker DevOps — chọn thư mục dự án để chạy docker compose up -d', 'info');
+        } catch (err: any) {
+          showToast(err.message || 'Lỗi khi kiểm tra Docker', 'error');
+        }
+        return;
+      }
+    }
+
+    // Minecraft plugin — hiện là bản demo
+    if (pluginId === 'devdock.plugin.minecraft') {
+      showToast('Minecraft plugin đang ở bản demo — sẽ bổ sung RCON/monitor sau.', 'info');
+      return;
+    }
+
+    showToast(`Plugin action: ${cmd.title}`, 'info');
   };
 
   const handleOpenTerminalForPath = (path?: string) => {
@@ -432,6 +489,8 @@ export const App: React.FC = () => {
               onSelectRepoPath={setActiveRepoPath}
               onRefreshProjects={refreshProjects}
               onOpenTerminal={handleOpenTerminalForPath}
+              pendingGitAction={pendingGitAction}
+              onClearPendingGitAction={() => setPendingGitAction(null)}
               onShowToast={showToast}
             />
           </div>
@@ -473,6 +532,8 @@ export const App: React.FC = () => {
               onClearPendingRunCommand={() => setPendingRunCommand(null)}
               pendingCwd={pendingTerminalCwd}
               onClearPendingCwd={() => setPendingTerminalCwd(null)}
+              pendingSplit={pendingTerminalSplit}
+              onClearPendingSplit={() => setPendingTerminalSplit(null)}
               isPageVisible={currentRoute === 'terminal'}
               terminalFontSize={settings.terminalFontSize}
               terminalFontFamily={settings.terminalFontFamily}

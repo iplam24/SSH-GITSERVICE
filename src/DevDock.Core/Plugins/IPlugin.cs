@@ -30,4 +30,5 @@ public interface IPluginManager
 {
     Task LoadPluginsAsync();
     IReadOnlyList<IDevDockPlugin> GetLoadedPlugins();
+    IReadOnlyList<CommandPaletteItem> GetPluginCommands();
 }
