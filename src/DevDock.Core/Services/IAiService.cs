@@ -13,4 +13,8 @@ public interface IAiService
     Task<AiTestResult> TestDirectConfigAsync(SaveAiProviderRequest request);
     Task<AiChatResponse> ChatAsync(AiChatRequest request);
     Task<AiChatResponse> GenerateCommitMessageAsync(AiGenerateCommitRequest request);
+
+    // AI Terminal Copilot & Error Explainer
+    Task<AiShellCommandResult> GenerateShellCommandAsync(AiShellCommandRequest request);
+    Task<AiChatResponse> ExplainErrorAsync(AiExplainErrorRequest request);
 }

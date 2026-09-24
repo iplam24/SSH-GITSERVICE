@@ -14,8 +14,12 @@ import {
   Server,
   Play,
   Square,
+  Sparkles,
+  AlertTriangle,
+  CornerDownLeft,
+  Loader2,
 } from 'lucide-react';
-import { TerminalSessionInfo, TerminalShellType, ShellDescriptor, SshProfile } from '../types';
+import { TerminalSessionInfo, TerminalShellType, ShellDescriptor, SshProfile, AiShellCommandResult } from '../types';
 import { api } from '../services/api';
 
 export interface TerminalTab {
@@ -76,6 +80,54 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
   const shellMenuRef = useRef<HTMLDivElement>(null);
 
   const [internalShells, setInternalShells] = useState<ShellDescriptor[]>(shells || []);
+
+  // AI Terminal Copilot (H1)
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [copilotInput, setCopilotInput] = useState('');
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotResult, setCopilotResult] = useState<AiShellCommandResult | null>(null);
+  const [injectedCommand, setInjectedCommand] = useState<string | null>(null);
+
+  const currentShellType = useMemo<string>(() => {
+    const active = tabs.find((t) => t.id === activeTabId);
+    return active?.session?.shellType || defaultShell || 'PowerShell';
+  }, [tabs, activeTabId, defaultShell]);
+
+  const handleAskCopilot = async () => {
+    if (!copilotInput.trim()) {
+      onShowToast('Hãy mô tả việc bạn muốn làm', 'error');
+      return;
+    }
+    setCopilotLoading(true);
+    setCopilotResult(null);
+    try {
+      const res = await api.generateShellCommand({
+        description: copilotInput.trim(),
+        shell: currentShellType,
+      });
+      if (res.success) {
+        setCopilotResult(res);
+      } else {
+        onShowToast(res.errorMessage || 'AI không tạo được lệnh. Kiểm tra cấu hình AI trong Cài đặt.', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi gọi AI Copilot', 'error');
+    } finally {
+      setCopilotLoading(false);
+    }
+  };
+
+  const handleInsertCopilotCommand = () => {
+    if (!copilotResult?.command) return;
+    if (tabs.length === 0) {
+      onShowToast('Chưa có phiên terminal nào để chèn lệnh', 'error');
+      return;
+    }
+    // Chèn vào terminal đang hoạt động — KHÔNG tự chạy, người dùng tự nhấn Enter
+    setInjectedCommand(copilotResult.command);
+    onShowToast('Đã chèn lệnh vào terminal — kiểm tra rồi nhấn Enter để chạy', 'success');
+    setCopilotOpen(false);
+  };
 
   useEffect(() => {
     if (shells && shells.length > 0) {
@@ -353,6 +405,22 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
 
         {/* Right Tools: Split view and Close all */}
         <div className="flex items-center gap-1.5 text-slate-400">
+          <button
+            type="button"
+            onClick={() => setCopilotOpen((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
+              copilotOpen
+                ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                : 'bg-[#0E1526] text-slate-300 border-[#1A253C] hover:text-violet-300 hover:border-violet-500/30'
+            }`}
+            title="AI Copilot: mô tả việc cần làm, AI gợi ý lệnh shell"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>AI Copilot</span>
+          </button>
+
+          <div className="w-[1px] h-3.5 bg-[#1E2A44]" />
+
           <div className="flex items-center bg-[#0E1526] rounded-md p-0.5 border border-[#1A253C]">
             <button
               type="button"
@@ -418,6 +486,68 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
         </div>
       </div>
 
+      {/* AI Copilot Panel (H1) */}
+      {copilotOpen && (
+        <div className="w-full border-b border-[#1E2A44] bg-[#0A1120] px-4 py-3 flex flex-col gap-2.5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-violet-400 shrink-0" />
+            <input
+              type="text"
+              autoFocus
+              value={copilotInput}
+              onChange={(e) => setCopilotInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !copilotLoading) handleAskCopilot();
+              }}
+              placeholder={`Mô tả việc cần làm (vd "liệt kê 10 file lớn nhất") — shell: ${currentShellType}`}
+              className="flex-1 bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs px-3 py-2 rounded-lg border border-[#23314F] focus:outline-none focus:border-violet-500/50"
+            />
+            <button
+              type="button"
+              onClick={handleAskCopilot}
+              disabled={copilotLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/40 hover:bg-violet-500/30 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {copilotLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Hỏi AI
+            </button>
+          </div>
+
+          {copilotResult && (
+            <div className="flex flex-col gap-2 bg-[#0E1526] border border-[#1E2A44] rounded-lg p-3">
+              <div className="flex items-center justify-between gap-2">
+                <code className="flex-1 text-xs text-emerald-300 font-mono break-all bg-black/30 px-2 py-1.5 rounded">
+                  {copilotResult.command}
+                </code>
+                <button
+                  type="button"
+                  onClick={handleInsertCopilotCommand}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors cursor-pointer shrink-0"
+                >
+                  <CornerDownLeft className="w-3.5 h-3.5" />
+                  Chèn vào terminal
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">{copilotResult.explanation}</p>
+              {copilotResult.isPotentiallyDestructive && (
+                <div className="flex items-start gap-2 text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-md px-2.5 py-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Cảnh báo: lệnh này có thể <strong>phá hủy dữ liệu hoặc khó hoàn tác</strong>. Hãy kiểm tra kỹ trước
+                    khi nhấn Enter. Lệnh chỉ được chèn, không tự động chạy.
+                  </span>
+                </div>
+              )}
+              {copilotResult.modelUsed && (
+                <span className="text-[10px] text-slate-500 font-mono self-end">
+                  {copilotResult.modelUsed} • {copilotResult.durationMs}ms
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Terminal Viewport */}
       <div className="flex-1 w-full h-full relative overflow-hidden bg-[#060911]">
         {tabs.length === 0 ? (
@@ -447,6 +577,8 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
                   isPageVisible={isPageVisible}
                   initialCommand={isActive ? pendingRunCommand : undefined}
                   onCommandExecuted={onClearPendingRunCommand}
+                  injectText={isActive ? injectedCommand : undefined}
+                  onInjected={() => setInjectedCommand(null)}
                   fontSize={terminalFontSize}
                   fontFamily={terminalFontFamily}
                   backgroundImage={terminalBackgroundImage}
@@ -539,6 +671,8 @@ const XTermInstance: React.FC<{
   isPageVisible?: boolean;
   initialCommand?: string | null;
   onCommandExecuted?: () => void;
+  injectText?: string | null;
+  onInjected?: () => void;
   fontSize?: number;
   fontFamily?: string;
   backgroundImage?: string;
@@ -550,6 +684,8 @@ const XTermInstance: React.FC<{
   isPageVisible = true,
   initialCommand,
   onCommandExecuted,
+  injectText,
+  onInjected,
   fontSize = 13,
   fontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
   backgroundImage,
@@ -608,6 +744,20 @@ const XTermInstance: React.FC<{
       return () => clearTimeout(timer);
     }
   }, [initialCommand, isActive, isPageVisible, onCommandExecuted]);
+
+  // Inject a command WITHOUT auto-running it (AI Copilot) — user reviews & presses Enter
+  useEffect(() => {
+    if (injectText && isActive && wsRef.current?.readyState === WebSocket.OPEN) {
+      const timer = setTimeout(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(injectText);
+          xtermRef.current?.focus();
+          onInjected?.();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [injectText, isActive, onInjected]);
 
   useEffect(() => {
     if (!containerRef.current) return;

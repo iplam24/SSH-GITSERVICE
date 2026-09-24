@@ -30,7 +30,8 @@ export type ToolType =
   | 'timestamp'
   | 'color'
   | 'diff'
-  | 'http';
+  | 'http'
+  | 'ai-explain';
 
 interface ToolsPageProps {
   initialTool?: ToolType;
@@ -60,6 +61,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ initialTool = 'json', onSh
     { id: 'color' as ToolType, label: 'Bảng mã màu RGB / HEX', icon: Palette },
     { id: 'diff' as ToolType, label: 'So sánh văn bản Diff', icon: FileDiff },
     { id: 'http' as ToolType, label: 'Kiểm thử HTTP API Client', icon: Send },
+    { id: 'ai-explain' as ToolType, label: 'AI Giải Thích Lỗi', icon: Sparkles },
   ];
 
   return (
@@ -106,6 +108,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ initialTool = 'json', onSh
         {activeTool === 'color' && <ColorTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
         {activeTool === 'diff' && <DiffTool />}
         {activeTool === 'http' && <HttpClientTool onCopy={copyToClipboard} copiedKey={copiedKey} />}
+        {activeTool === 'ai-explain' && <AiExplainErrorTool onCopy={copyToClipboard} copiedKey={copiedKey} onShowToast={onShowToast} />}
       
       </div>
     </div>
@@ -922,6 +925,111 @@ const HttpClientTool: React.FC<{ onCopy: (text: string, key: string) => void; co
 
           <pre className="text-xs font-mono text-slate-300 max-h-72 overflow-auto whitespace-pre-wrap selectable pt-2">
             {response.body}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* =========================================================================================
+ * AI ERROR EXPLAINER TOOL (H3)
+ * ========================================================================================= */
+const AiExplainErrorTool: React.FC<{
+  onCopy: (text: string, key: string) => void;
+  copiedKey: string | null;
+  onShowToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+}> = ({ onCopy, copiedKey, onShowToast }) => {
+  const [errorText, setErrorText] = useState('');
+  const [context, setContext] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleExplain = async () => {
+    if (!errorText.trim()) {
+      onShowToast('Vui lòng dán nội dung lỗi cần giải thích', 'error');
+      return;
+    }
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await api.explainError({
+        errorText: errorText.trim(),
+        context: context.trim() || undefined,
+      });
+      if (res.success) {
+        setResult(res.message);
+      } else {
+        onShowToast(res.errorMessage || 'AI không phản hồi. Kiểm tra cấu hình AI trong Cài đặt.', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi gọi AI', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-violet-400" />
+          AI Giải Thích Lỗi
+        </h2>
+      </div>
+      <p className="text-xs text-slate-400 -mt-2">
+        Dán log lỗi / stack trace / output lệnh bị lỗi. AI sẽ giải thích nguyên nhân và gợi ý cách khắc phục bằng tiếng Việt.
+      </p>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Bối cảnh (tùy chọn)</label>
+        <input
+          type="text"
+          value={context}
+          onChange={(e) => setContext(e.target.value)}
+          placeholder="vd: Node.js, .NET, Python, Docker..."
+          className="bg-[#070A0F] text-slate-100 placeholder-slate-500 text-xs px-3 py-2 rounded-lg border border-[#1E293B] focus:outline-none focus:border-violet-500/50"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Nội dung lỗi</label>
+        <textarea
+          value={errorText}
+          onChange={(e) => setErrorText(e.target.value)}
+          rows={8}
+          placeholder="Dán stack trace hoặc thông báo lỗi vào đây..."
+          className="bg-[#070A0F] text-slate-100 placeholder-slate-500 text-xs font-mono px-3 py-2 rounded-lg border border-[#1E293B] focus:outline-none focus:border-violet-500/50 resize-y"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={handleExplain}
+        disabled={loading}
+        className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/40 hover:bg-violet-500/30 transition-colors cursor-pointer disabled:opacity-50"
+      >
+        {loading ? <RotateCcw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+        {loading ? 'Đang phân tích...' : 'Giải thích lỗi'}
+      </button>
+
+      {result && (
+        <div className="flex flex-col gap-2 p-4 bg-[#070A0F] border border-[#1E293B] rounded-xl animate-in fade-in duration-150">
+          <div className="flex items-center justify-between border-b border-[#1E293B] pb-2">
+            <span className="text-xs font-semibold text-violet-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> Kết quả phân tích
+            </span>
+            <button
+              type="button"
+              onClick={() => onCopy(result, 'ai-explain-res')}
+              className="text-slate-400 hover:text-slate-200 flex items-center gap-1 text-xs cursor-pointer"
+            >
+              {copiedKey === 'ai-explain-res' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>Copy</span>
+            </button>
+          </div>
+          <pre className="text-xs text-slate-300 max-h-96 overflow-auto whitespace-pre-wrap selectable pt-2 leading-relaxed">
+            {result}
           </pre>
         </div>
       )}

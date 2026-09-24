@@ -341,6 +341,10 @@ export const App: React.FC = () => {
       setCurrentRoute('terminal');
     } else if (cmd.actionType === 'plugin_action') {
       handlePluginAction(cmd);
+    } else if (cmd.actionType === 'ai_shell') {
+      // Mở Terminal — AI Copilot sẽ được người dùng bật từ nút trong TerminalPage
+      setCurrentRoute('terminal');
+      showToast('Mở tab AI Copilot trong Terminal để nhờ AI gợi ý lệnh', 'info');
     } else if (cmd.actionType === 'setup_wizard' || cmd.id === 'setup:wizard') {
       setIsSetupOpen(true);
     }

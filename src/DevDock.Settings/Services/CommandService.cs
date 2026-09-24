@@ -43,6 +43,10 @@ public class CommandService : ICommandService
         items.Add(new CommandPaletteItem { Id = "term:split:horiz", Title = "Terminal: Split Horizontal", Category = "Terminal", ActionType = "terminal_split", Payload = new() { ["direction"] = "horizontal" } });
         items.Add(new CommandPaletteItem { Id = "term:split:vert", Title = "Terminal: Split Vertical", Category = "Terminal", ActionType = "terminal_split", Payload = new() { ["direction"] = "vertical" } });
 
+        // AI Actions
+        items.Add(new CommandPaletteItem { Id = "ai:shell", Title = "AI: Gợi ý lệnh Terminal (Copilot)", Subtitle = "Mô tả việc cần làm, AI sinh lệnh shell", Category = "AI", Icon = "sparkles", ActionType = "ai_shell" });
+        items.Add(new CommandPaletteItem { Id = "ai:explain-error", Title = "AI: Giải thích lỗi", Subtitle = "Dán log/stacktrace để AI phân tích", Category = "AI", Icon = "sparkles", ActionType = "navigate", Payload = new() { ["route"] = "/tools", ["tool"] = "ai-explain" } });
+
         // Git Actions
         items.Add(new CommandPaletteItem { Id = "git:stage_all", Title = "Git: Stage All Changes", Category = "Git", ActionType = "git_action", Payload = new() { ["action"] = "stage_all" } });
         items.Add(new CommandPaletteItem { Id = "git:unstage_all", Title = "Git: Unstage All Changes", Category = "Git", ActionType = "git_action", Payload = new() { ["action"] = "unstage_all" } });

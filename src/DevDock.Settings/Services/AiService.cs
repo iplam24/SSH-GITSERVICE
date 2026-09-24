@@ -571,6 +571,161 @@ Rules:
         return await ChatAsync(chatReq);
     }
 
+    // ------------------ H1: AI TERMINAL COPILOT ------------------
+    private static readonly string[] DestructivePatterns =
+    {
+        "rm ", "rm -", "rmdir", "del ", "del/", "erase ", "format ", "diskpart",
+        "reg delete", "rd /s", "shutdown", "restart-computer", "stop-computer",
+        "remove-item", "ri -recurse", "mkfs", "> /dev", "dd if=", ":(){", "fork bomb",
+        "git reset --hard", "git clean -f", "drop database", "drop table", "truncate table"
+    };
+
+    private static bool LooksDestructive(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return false;
+        var lower = command.ToLowerInvariant();
+        return DestructivePatterns.Any(p => lower.Contains(p));
+    }
+
+    public async Task<AiShellCommandResult> GenerateShellCommandAsync(AiShellCommandRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            return new AiShellCommandResult { Success = false, ErrorMessage = "Vui lòng mô tả việc bạn muốn làm." };
+        }
+
+        var shell = string.IsNullOrWhiteSpace(request.Shell) ? "PowerShell" : request.Shell;
+        var shellHint = shell switch
+        {
+            "Cmd" => "Windows CMD (cmd.exe) syntax",
+            "GitBash" => "Git Bash / POSIX sh syntax on Windows",
+            _ => "Windows PowerShell syntax"
+        };
+
+        var systemPrompt = $@"You are a command-line expert for {shellHint}.
+The user describes a task in natural language (Vietnamese or English). You output ONE single shell command that accomplishes it.
+STRICT RULES:
+1. Output ONLY a compact JSON object, no markdown, no code fences.
+2. JSON shape: {{""command"": string, ""explanation"": string, ""destructive"": boolean}}
+3. ""command"": the exact single-line command to run (no leading prompt symbols).
+4. ""explanation"": a short explanation IN VIETNAMESE of what the command does.
+5. ""destructive"": true if the command deletes, overwrites, formats, or is otherwise hard to reverse.
+6. Prefer safe, read-only commands when the intent is ambiguous. Never invent destructive flags the user did not ask for.";
+
+        var chatReq = new AiChatRequest
+        {
+            ProviderId = request.ProviderId,
+            Model = request.Model,
+            SystemPrompt = systemPrompt,
+            Temperature = 0.1,
+            Messages = [new AiChatMessage { Role = "user", Content = request.Description }]
+        };
+
+        var res = await ChatAsync(chatReq);
+        if (!res.Success)
+        {
+            return new AiShellCommandResult { Success = false, ErrorMessage = res.ErrorMessage ?? "AI không phản hồi." };
+        }
+
+        var parsed = ParseShellCommandJson(res.Message);
+        var command = parsed.command;
+        var explanation = parsed.explanation;
+
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            // Fallback: treat the whole response as the command
+            command = res.Message.Trim();
+        }
+
+        var destructive = parsed.destructive || LooksDestructive(command);
+
+        return new AiShellCommandResult
+        {
+            Success = true,
+            Command = command,
+            Explanation = string.IsNullOrWhiteSpace(explanation) ? "(AI không cung cấp giải thích)" : explanation,
+            IsPotentiallyDestructive = destructive,
+            ModelUsed = res.ModelUsed,
+            DurationMs = res.DurationMs
+        };
+    }
+
+    private static (string command, string explanation, bool destructive) ParseShellCommandJson(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return (string.Empty, string.Empty, false);
+
+        var text = raw.Trim();
+        // Strip markdown code fences if the model added them despite instructions
+        if (text.StartsWith("```"))
+        {
+            var firstNewline = text.IndexOf('\n');
+            if (firstNewline >= 0) text = text[(firstNewline + 1)..];
+            if (text.EndsWith("```")) text = text[..^3];
+            text = text.Trim();
+        }
+
+        // Extract the first {...} block
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+        if (start >= 0 && end > start)
+        {
+            var jsonSlice = text.Substring(start, end - start + 1);
+            try
+            {
+                using var doc = JsonDocument.Parse(jsonSlice);
+                var root = doc.RootElement;
+                var cmd = root.TryGetProperty("command", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? "" : "";
+                var exp = root.TryGetProperty("explanation", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : "";
+                var des = root.TryGetProperty("destructive", out var d) && (d.ValueKind == JsonValueKind.True || d.ValueKind == JsonValueKind.False) && d.GetBoolean();
+                return (cmd.Trim(), exp.Trim(), des);
+            }
+            catch
+            {
+                // fall through
+            }
+        }
+
+        return (string.Empty, string.Empty, false);
+    }
+
+    // ------------------ H3: AI ERROR EXPLAINER ------------------
+    public async Task<AiChatResponse> ExplainErrorAsync(AiExplainErrorRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ErrorText))
+        {
+            return new AiChatResponse { Success = false, ErrorMessage = "Vui lòng dán nội dung lỗi cần giải thích." };
+        }
+
+        var errorText = request.ErrorText;
+        if (errorText.Length > 8000)
+        {
+            errorText = errorText[..8000] + "\n...[Nội dung đã cắt bớt để phù hợp giới hạn token]";
+        }
+
+        var systemPrompt = @"You are a senior software engineer and debugging expert.
+The user pastes an error message, stack trace, or failing command output.
+Respond IN VIETNAMESE using clear markdown with these sections:
+1. **Nguyên nhân**: giải thích ngắn gọn lỗi này là gì và vì sao xảy ra.
+2. **Cách khắc phục**: các bước cụ thể để sửa, kèm lệnh/đoạn code nếu cần.
+3. **Phòng tránh**: mẹo để tránh lỗi tương tự (nếu có).
+Be concise and practical. Do not invent details not present in the error.";
+
+        var userContent = string.IsNullOrWhiteSpace(request.Context)
+            ? $"Giải thích lỗi sau:\n\n{errorText}"
+            : $"Bối cảnh: {request.Context}\n\nGiải thích lỗi sau:\n\n{errorText}";
+
+        var chatReq = new AiChatRequest
+        {
+            ProviderId = request.ProviderId,
+            Model = request.Model,
+            SystemPrompt = systemPrompt,
+            Temperature = 0.3,
+            Messages = [new AiChatMessage { Role = "user", Content = userContent }]
+        };
+
+        return await ChatAsync(chatReq);
+    }
+
     private async Task<AiChatResponse> ExecuteCompletionAsync(AiProviderConfig provider, string? apiKey, AiChatRequest request)
     {
         var model = !string.IsNullOrWhiteSpace(request.Model) ? request.Model : provider.DefaultModel;

@@ -46,6 +46,9 @@ import {
   AiChatRequest,
   AiChatResponse,
   AiGenerateCommitRequest,
+  AiShellCommandRequest,
+  AiShellCommandResult,
+  AiExplainErrorRequest,
   RemoteFileItem,
   RemoteFileContent,
   SftpUploadRequest,
@@ -523,6 +526,10 @@ export const api = {
     req<AiChatResponse>('/api/ai/chat', { method: 'POST', body: JSON.stringify(data) }),
   generateAiCommit: (data: AiGenerateCommitRequest) =>
     req<AiChatResponse>('/api/ai/git/generate-commit', { method: 'POST', body: JSON.stringify(data) }),
+  generateShellCommand: (data: AiShellCommandRequest) =>
+    req<AiShellCommandResult>('/api/ai/shell-command', { method: 'POST', body: JSON.stringify(data) }),
+  explainError: (data: AiExplainErrorRequest) =>
+    req<AiChatResponse>('/api/ai/explain-error', { method: 'POST', body: JSON.stringify(data) }),
 
   // ------------------ WINDOWS DEV OPS ------------------
   getListeningPorts: () => req<PortListeningItem[]>('/api/devops/ports'),

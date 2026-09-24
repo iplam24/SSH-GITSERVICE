@@ -75,3 +75,32 @@ public class AiGenerateCommitRequest
     public string? Model { get; set; }
     public string? CustomInstructions { get; set; }
 }
+
+// ------------------ AI TERMINAL COPILOT (H1) ------------------
+public class AiShellCommandRequest
+{
+    public string Description { get; set; } = string.Empty;
+    public string? Shell { get; set; } // PowerShell | Cmd | GitBash
+    public string? ProviderId { get; set; }
+    public string? Model { get; set; }
+}
+
+public class AiShellCommandResult
+{
+    public bool Success { get; set; }
+    public string Command { get; set; } = string.Empty;
+    public string Explanation { get; set; } = string.Empty;
+    public bool IsPotentiallyDestructive { get; set; }
+    public string ModelUsed { get; set; } = string.Empty;
+    public long DurationMs { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+// ------------------ AI ERROR EXPLAINER (H3) ------------------
+public class AiExplainErrorRequest
+{
+    public string ErrorText { get; set; } = string.Empty;
+    public string? Context { get; set; } // ngôn ngữ/công nghệ tùy chọn: node, dotnet, python...
+    public string? ProviderId { get; set; }
+    public string? Model { get; set; }
+}

@@ -1243,6 +1243,12 @@ public class ApiServer
         api.MapPost("/ai/git/generate-commit", async (AiGenerateCommitRequest req, IAiService svc) =>
             Results.Ok(await svc.GenerateCommitMessageAsync(req)));
 
+        api.MapPost("/ai/shell-command", async (AiShellCommandRequest req, IAiService svc) =>
+            Results.Ok(await svc.GenerateShellCommandAsync(req)));
+
+        api.MapPost("/ai/explain-error", async (AiExplainErrorRequest req, IAiService svc) =>
+            Results.Ok(await svc.ExplainErrorAsync(req)));
+
         // ------------------ WINDOWS DEV OPS (PORTS, HOSTS, ENV) ------------------
         api.MapGet("/devops/ports", async (IDevOpsService svc) =>
             Results.Ok(await svc.GetListeningPortsAsync()));

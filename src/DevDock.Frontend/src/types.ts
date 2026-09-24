@@ -575,6 +575,31 @@ export interface AiGenerateCommitRequest {
   customInstructions?: string;
 }
 
+// ------------------ AI TERMINAL COPILOT & ERROR EXPLAINER ------------------
+export interface AiShellCommandRequest {
+  description: string;
+  shell?: string;
+  providerId?: string;
+  model?: string;
+}
+
+export interface AiShellCommandResult {
+  success: boolean;
+  command: string;
+  explanation: string;
+  isPotentiallyDestructive: boolean;
+  modelUsed: string;
+  durationMs: number;
+  errorMessage?: string;
+}
+
+export interface AiExplainErrorRequest {
+  errorText: string;
+  context?: string;
+  providerId?: string;
+  model?: string;
+}
+
 export interface AiPlanStep {
   id: string;
   title: string;
