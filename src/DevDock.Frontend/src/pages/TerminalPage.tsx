@@ -18,8 +18,9 @@ import {
   AlertTriangle,
   CornerDownLeft,
   Loader2,
+  BookMarked,
 } from 'lucide-react';
-import { TerminalSessionInfo, TerminalShellType, ShellDescriptor, SshProfile, AiShellCommandResult } from '../types';
+import { TerminalSessionInfo, TerminalShellType, ShellDescriptor, SshProfile, AiShellCommandResult, SnippetItem } from '../types';
 import { api } from '../services/api';
 
 export interface TerminalTab {
@@ -128,6 +129,80 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
     onShowToast('Đã chèn lệnh vào terminal — kiểm tra rồi nhấn Enter để chạy', 'success');
     setCopilotOpen(false);
   };
+
+  // Snippet / Command Manager (N4)
+  const [snippetOpen, setSnippetOpen] = useState(false);
+  const [snippets, setSnippets] = useState<SnippetItem[]>([]);
+  const [snippetSearch, setSnippetSearch] = useState('');
+  const [newSnippet, setNewSnippet] = useState<{ title: string; command: string; group: string }>({
+    title: '',
+    command: '',
+    group: 'General',
+  });
+
+  const loadSnippets = async () => {
+    try {
+      const res = await api.getSnippets();
+      setSnippets(res || []);
+    } catch {
+      /* im lặng — không chặn terminal */
+    }
+  };
+
+  useEffect(() => {
+    if (snippetOpen) loadSnippets();
+  }, [snippetOpen]);
+
+  const handleSaveSnippet = async () => {
+    if (!newSnippet.title.trim() || !newSnippet.command.trim()) {
+      onShowToast('Nhập tên và nội dung lệnh cho snippet', 'error');
+      return;
+    }
+    try {
+      await api.saveSnippet({
+        title: newSnippet.title.trim(),
+        command: newSnippet.command.trim(),
+        group: newSnippet.group.trim() || 'General',
+      });
+      setNewSnippet({ title: '', command: '', group: 'General' });
+      onShowToast('Đã lưu snippet', 'success');
+      loadSnippets();
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi lưu snippet', 'error');
+    }
+  };
+
+  const handleDeleteSnippet = async (id: string) => {
+    try {
+      await api.deleteSnippet(id);
+      loadSnippets();
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi xóa snippet', 'error');
+    }
+  };
+
+  const handleRunSnippet = (s: SnippetItem) => {
+    if (tabs.length === 0) {
+      onShowToast('Chưa có phiên terminal nào để chèn lệnh', 'error');
+      return;
+    }
+    // Chèn (không tự chạy) — người dùng nhấn Enter
+    setInjectedCommand(s.command);
+    api.useSnippet(s.id).catch(() => {});
+    onShowToast('Đã chèn snippet vào terminal — nhấn Enter để chạy', 'success');
+    setSnippetOpen(false);
+  };
+
+  const filteredSnippets = useMemo(() => {
+    const q = snippetSearch.trim().toLowerCase();
+    if (!q) return snippets;
+    return snippets.filter(
+      (s) =>
+        s.title.toLowerCase().includes(q) ||
+        s.command.toLowerCase().includes(q) ||
+        s.group.toLowerCase().includes(q)
+    );
+  }, [snippets, snippetSearch]);
 
   useEffect(() => {
     if (shells && shells.length > 0) {
@@ -419,6 +494,20 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
             <span>AI Copilot</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setSnippetOpen((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors cursor-pointer ${
+              snippetOpen
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-[#0E1526] text-slate-300 border-[#1A253C] hover:text-amber-300 hover:border-amber-500/30'
+            }`}
+            title="Snippet: lưu & chèn nhanh các lệnh terminal hay dùng"
+          >
+            <BookMarked className="w-3.5 h-3.5" />
+            <span>Snippet</span>
+          </button>
+
           <div className="w-[1px] h-3.5 bg-[#1E2A44]" />
 
           <div className="flex items-center bg-[#0E1526] rounded-md p-0.5 border border-[#1A253C]">
@@ -545,6 +634,101 @@ export const TerminalPage: React.FC<TerminalPageProps> = ({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Snippet / Command Manager Panel (N4) */}
+      {snippetOpen && (
+        <div className="w-full border-b border-[#1E2A44] bg-[#0A1120] px-4 py-3 flex flex-col gap-2.5">
+          <div className="flex items-center gap-2">
+            <BookMarked className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-xs font-semibold text-amber-300">Snippet Lệnh</span>
+            <input
+              type="text"
+              value={snippetSearch}
+              onChange={(e) => setSnippetSearch(e.target.value)}
+              placeholder="Tìm snippet..."
+              className="ml-auto w-48 bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs px-3 py-1.5 rounded-lg border border-[#23314F] focus:outline-none focus:border-amber-500/50"
+            />
+          </div>
+
+          {/* Add new snippet */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newSnippet.title}
+              onChange={(e) => setNewSnippet((s) => ({ ...s, title: e.target.value }))}
+              placeholder="Tên"
+              className="w-32 bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs px-2.5 py-1.5 rounded-lg border border-[#23314F] focus:outline-none focus:border-amber-500/50"
+            />
+            <input
+              type="text"
+              value={newSnippet.command}
+              onChange={(e) => setNewSnippet((s) => ({ ...s, command: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveSnippet();
+              }}
+              placeholder="Lệnh (vd: npm run dev)"
+              className="flex-1 bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs font-mono px-2.5 py-1.5 rounded-lg border border-[#23314F] focus:outline-none focus:border-amber-500/50"
+            />
+            <input
+              type="text"
+              value={newSnippet.group}
+              onChange={(e) => setNewSnippet((s) => ({ ...s, group: e.target.value }))}
+              placeholder="Nhóm"
+              className="w-24 bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs px-2.5 py-1.5 rounded-lg border border-[#23314F] focus:outline-none focus:border-amber-500/50"
+            />
+            <button
+              type="button"
+              onClick={handleSaveSnippet}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Lưu
+            </button>
+          </div>
+
+          {/* Snippet list */}
+          <div className="flex flex-col gap-1 max-h-52 overflow-y-auto">
+            {filteredSnippets.length === 0 ? (
+              <div className="text-[11px] text-slate-500 py-2 text-center">
+                Chưa có snippet nào. Thêm lệnh hay dùng để chèn nhanh về sau.
+              </div>
+            ) : (
+              filteredSnippets.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-2 bg-[#0E1526] border border-[#1E2A44] rounded-lg px-3 py-1.5 group"
+                >
+                  <span className="text-[10px] font-mono text-amber-400/70 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">
+                    {s.group}
+                  </span>
+                  <span className="text-xs text-slate-200 font-medium shrink-0 truncate max-w-[140px]">{s.title}</span>
+                  <code className="flex-1 text-[11px] text-emerald-300 font-mono truncate">{s.command}</code>
+                  {s.useCount > 0 && (
+                    <span className="text-[10px] text-slate-500 shrink-0">×{s.useCount}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRunSnippet(s)}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors cursor-pointer shrink-0"
+                    title="Chèn vào terminal (không tự chạy)"
+                  >
+                    <CornerDownLeft className="w-3 h-3" />
+                    Chèn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSnippet(s.id)}
+                    className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                    title="Xóa snippet"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 

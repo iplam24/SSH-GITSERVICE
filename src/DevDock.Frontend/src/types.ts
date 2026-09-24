@@ -600,6 +600,37 @@ export interface AiExplainErrorRequest {
   model?: string;
 }
 
+// ------------------ SNIPPETS (N4) ------------------
+export interface SnippetItem {
+  id: string;
+  title: string;
+  command: string;
+  group: string;
+  description?: string;
+  projectId?: string;
+  useCount: number;
+  createdAt: string;
+}
+
+// ------------------ DEV ENVIRONMENT PROFILES (N5) ------------------
+export interface DevEnvProfile {
+  id: string;
+  projectId: string;
+  name: string;
+  openEditor: boolean;
+  editor: string;
+  openTerminal: boolean;
+  devCommandKey?: string;
+  urls: string[];
+  createdAt: string;
+}
+
+export interface DevEnvLaunchResult {
+  success: boolean;
+  actions: string[];
+  errorMessage?: string;
+}
+
 export interface AiPlanStep {
   id: string;
   title: string;

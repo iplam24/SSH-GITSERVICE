@@ -49,6 +49,9 @@ import {
   AiShellCommandRequest,
   AiShellCommandResult,
   AiExplainErrorRequest,
+  SnippetItem,
+  DevEnvProfile,
+  DevEnvLaunchResult,
   RemoteFileItem,
   RemoteFileContent,
   SftpUploadRequest,
@@ -627,6 +630,25 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ workingDirectory }),
     }),
+
+  // ------------------ SNIPPETS (N4) ------------------
+  getSnippets: () => req<SnippetItem[]>('/api/snippets'),
+  saveSnippet: (snippet: Partial<SnippetItem>) =>
+    req<SnippetItem>('/api/snippets', { method: 'POST', body: JSON.stringify(snippet) }),
+  deleteSnippet: (id: string) =>
+    req<{ success: boolean }>(`/api/snippets/${id}`, { method: 'DELETE' }),
+  useSnippet: (id: string) =>
+    req<SnippetItem>(`/api/snippets/${id}/use`, { method: 'POST' }),
+
+  // ------------------ DEV ENVIRONMENT PROFILES (N5) ------------------
+  getDevEnvProfiles: (projectId?: string) =>
+    req<DevEnvProfile[]>(`/api/dev-env/profiles${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  saveDevEnvProfile: (profile: Partial<DevEnvProfile>) =>
+    req<DevEnvProfile>('/api/dev-env/profiles', { method: 'POST', body: JSON.stringify(profile) }),
+  deleteDevEnvProfile: (id: string) =>
+    req<{ success: boolean }>(`/api/dev-env/profiles/${id}`, { method: 'DELETE' }),
+  launchDevEnv: (id: string) =>
+    req<DevEnvLaunchResult>(`/api/dev-env/profiles/${id}/launch`, { method: 'POST' }),
 
   // WebSocket Helpers
   getTerminalWsUrl: (sessionId: string) => {

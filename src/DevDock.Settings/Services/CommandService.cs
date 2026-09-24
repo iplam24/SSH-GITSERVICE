@@ -70,6 +70,9 @@ public class CommandService : ICommandService
         items.Add(new CommandPaletteItem { Id = "tool:diff", Title = "Tool: Text Diff Comparator", Category = "Tools", ActionType = "navigate", Payload = new() { ["route"] = "/tools", ["tool"] = "diff" } });
         items.Add(new CommandPaletteItem { Id = "tool:http", Title = "Tool: HTTP Client", Category = "Tools", ActionType = "navigate", Payload = new() { ["route"] = "/tools", ["tool"] = "http" } });
 
+        // Productivity (N4/N5)
+        items.Add(new CommandPaletteItem { Id = "snippet:manager", Title = "Snippet: Mở trình quản lý lệnh", Subtitle = "Lưu & chèn nhanh lệnh terminal hay dùng", Category = "Terminal", Icon = "bookmark", ActionType = "open_snippets" });
+
         // Registered Projects
         var projects = await _projectService.GetAllProjectsAsync();
         foreach (var p in projects)

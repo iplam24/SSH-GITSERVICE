@@ -15,8 +15,10 @@ import {
   Check,
   AlertCircle,
   FolderOpen,
+  Rocket,
+  Settings2,
 } from 'lucide-react';
-import { ProjectItem } from '../types';
+import { ProjectItem, DevEnvProfile } from '../types';
 import { api } from '../services/api';
 import { useConfirm } from '../context/ConfirmContext';
 
@@ -51,6 +53,97 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
   // Runner state
   const [runningCmd, setRunningCmd] = useState<{ projectId: string; cmdKey: string } | null>(null);
   const [cmdOutput, setCmdOutput] = useState<{ title: string; output: string; success: boolean } | null>(null);
+
+  // Dev Environment (N5)
+  const [devEnvProject, setDevEnvProject] = useState<ProjectItem | null>(null);
+  const [devEnvProfiles, setDevEnvProfiles] = useState<DevEnvProfile[]>([]);
+  const [devEnvLoading, setDevEnvLoading] = useState(false);
+  const [launchingProfileId, setLaunchingProfileId] = useState<string | null>(null);
+  const [newProfile, setNewProfile] = useState<Partial<DevEnvProfile>>({
+    name: 'Default',
+    openEditor: true,
+    editor: 'code',
+    openTerminal: true,
+    devCommandKey: 'dev',
+    urls: [],
+  });
+  const [urlInput, setUrlInput] = useState('');
+
+  const openDevEnv = async (p: ProjectItem) => {
+    setDevEnvProject(p);
+    setDevEnvLoading(true);
+    setNewProfile({
+      name: 'Default',
+      openEditor: true,
+      editor: 'code',
+      openTerminal: true,
+      devCommandKey: Object.keys(p.commands || {})[0] || 'dev',
+      urls: [],
+    });
+    setUrlInput('');
+    try {
+      const res = await api.getDevEnvProfiles(p.id);
+      setDevEnvProfiles(res || []);
+    } catch {
+      setDevEnvProfiles([]);
+    } finally {
+      setDevEnvLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!devEnvProject) return;
+    if (!newProfile.name?.trim()) {
+      onShowToast('Nhập tên profile môi trường', 'error');
+      return;
+    }
+    try {
+      await api.saveDevEnvProfile({
+        ...newProfile,
+        projectId: devEnvProject.id,
+        name: newProfile.name.trim(),
+        editor: newProfile.editor?.trim() || 'code',
+        urls: newProfile.urls || [],
+      });
+      onShowToast('Đã lưu profile môi trường', 'success');
+      const res = await api.getDevEnvProfiles(devEnvProject.id);
+      setDevEnvProfiles(res || []);
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi lưu profile', 'error');
+    }
+  };
+
+  const handleLaunchProfile = async (profile: DevEnvProfile) => {
+    setLaunchingProfileId(profile.id);
+    try {
+      const res = await api.launchDevEnv(profile.id);
+      if (res.success) {
+        onShowToast(`Đã khởi chạy môi trường: ${res.actions.length} thao tác`, 'success');
+        setCmdOutput({
+          title: `One-Click Dev Env: ${profile.name}`,
+          output: res.actions.join('\n'),
+          success: true,
+        });
+      } else {
+        onShowToast(res.errorMessage || 'Lỗi khởi chạy môi trường', 'error');
+      }
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi khởi chạy môi trường', 'error');
+    } finally {
+      setLaunchingProfileId(null);
+    }
+  };
+
+  const handleDeleteProfile = async (id: string) => {
+    if (!devEnvProject) return;
+    try {
+      await api.deleteDevEnvProfile(id);
+      const res = await api.getDevEnvProfiles(devEnvProject.id);
+      setDevEnvProfiles(res || []);
+    } catch (err: any) {
+      onShowToast(err.message || 'Lỗi xóa profile', 'error');
+    }
+  };
 
   const filteredProjects = projects.filter(
     (p) =>
@@ -356,6 +449,14 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
                             Git
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => openDevEnv(p)}
+                          className="hover:text-violet-400 transition-colors cursor-pointer"
+                          title="One-Click Dev Environment: mở editor + terminal + dev server + URL"
+                        >
+                          <Rocket className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
                       <button
@@ -398,6 +499,197 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({
           <pre className="text-xs font-mono text-slate-300 bg-[#070A0F] p-3 rounded-lg overflow-x-auto max-h-48 whitespace-pre-wrap selectable">
             {cmdOutput.output}
           </pre>
+        </div>
+      )}
+
+      {/* Dev Environment Modal (N5) */}
+      {devEnvProject && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111827] border border-[#334155] rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
+              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Rocket className="w-5 h-5 text-violet-400" />
+                <span>One-Click Dev Env — {devEnvProject.name}</span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => setDevEnvProject(null)}
+                className="p-1 text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Existing profiles */}
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] uppercase font-mono text-slate-400 font-bold tracking-wider">
+                Profile đã lưu
+              </span>
+              {devEnvLoading ? (
+                <div className="text-xs text-slate-500">Đang tải...</div>
+              ) : devEnvProfiles.length === 0 ? (
+                <div className="text-xs text-slate-500">Chưa có profile. Tạo mới bên dưới.</div>
+              ) : (
+                devEnvProfiles.map((prof) => (
+                  <div
+                    key={prof.id}
+                    className="flex items-center gap-2 bg-[#0E1526] border border-[#1E2A44] rounded-lg px-3 py-2"
+                  >
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="text-xs font-semibold text-slate-200">{prof.name}</span>
+                      <span className="text-[10px] text-slate-500 truncate">
+                        {[
+                          prof.openEditor && `editor(${prof.editor})`,
+                          prof.openTerminal && 'terminal',
+                          prof.devCommandKey && `cmd:${prof.devCommandKey}`,
+                          prof.urls?.length > 0 && `${prof.urls.length} URL`,
+                        ]
+                          .filter(Boolean)
+                          .join(' • ')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleLaunchProfile(prof)}
+                      disabled={launchingProfileId === prof.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/40 hover:bg-violet-500/30 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      <Rocket className="w-3.5 h-3.5" />
+                      {launchingProfileId === prof.id ? 'Đang chạy...' : 'Launch'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteProfile(prof.id)}
+                      className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                      title="Xóa profile"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* New profile form */}
+            <div className="flex flex-col gap-3 border-t border-[#1E293B] pt-4">
+              <span className="text-[11px] uppercase font-mono text-slate-400 font-bold tracking-wider flex items-center gap-1.5">
+                <Settings2 className="w-3.5 h-3.5" /> Tạo profile mới
+              </span>
+
+              <input
+                type="text"
+                value={newProfile.name || ''}
+                onChange={(e) => setNewProfile((s) => ({ ...s, name: e.target.value }))}
+                placeholder="Tên profile"
+                className="bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs px-3 py-2 rounded-lg border border-[#23314F] focus:outline-none focus:border-violet-500/50"
+              />
+
+              <div className="flex items-center gap-4 text-xs text-slate-300">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!newProfile.openEditor}
+                    onChange={(e) => setNewProfile((s) => ({ ...s, openEditor: e.target.checked }))}
+                    className="accent-violet-500"
+                  />
+                  Mở editor
+                </label>
+                <input
+                  type="text"
+                  value={newProfile.editor || ''}
+                  onChange={(e) => setNewProfile((s) => ({ ...s, editor: e.target.value }))}
+                  placeholder="code"
+                  className="w-24 bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs px-2.5 py-1.5 rounded-lg border border-[#23314F] focus:outline-none focus:border-violet-500/50"
+                />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!newProfile.openTerminal}
+                    onChange={(e) => setNewProfile((s) => ({ ...s, openTerminal: e.target.checked }))}
+                    className="accent-violet-500"
+                  />
+                  Mở terminal
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] text-slate-400">Lệnh dev (chọn từ Commands của dự án)</label>
+                <select
+                  value={newProfile.devCommandKey || ''}
+                  onChange={(e) => setNewProfile((s) => ({ ...s, devCommandKey: e.target.value || undefined }))}
+                  className="bg-[#0E1526] text-slate-100 text-xs px-3 py-2 rounded-lg border border-[#23314F] focus:outline-none focus:border-violet-500/50"
+                >
+                  <option value="">— Không chạy lệnh —</option>
+                  {Object.keys(devEnvProject.commands || {}).map((key) => (
+                    <option key={key} value={key}>
+                      {key}: {devEnvProject.commands[key]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] text-slate-400">URL tự mở (http/https)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && urlInput.trim()) {
+                        setNewProfile((s) => ({ ...s, urls: [...(s.urls || []), urlInput.trim()] }));
+                        setUrlInput('');
+                      }
+                    }}
+                    placeholder="http://localhost:3000"
+                    className="flex-1 bg-[#0E1526] text-slate-100 placeholder-slate-500 text-xs px-3 py-2 rounded-lg border border-[#23314F] focus:outline-none focus:border-violet-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (urlInput.trim()) {
+                        setNewProfile((s) => ({ ...s, urls: [...(s.urls || []), urlInput.trim()] }));
+                        setUrlInput('');
+                      }
+                    }}
+                    className="px-3 py-2 rounded-lg text-xs font-medium bg-[#161a26] text-slate-300 border border-[#23314F] hover:bg-[#1d2232] transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {(newProfile.urls || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {(newProfile.urls || []).map((u, i) => (
+                      <span
+                        key={i}
+                        className="flex items-center gap-1 text-[10px] font-mono bg-[#0E1526] text-slate-300 border border-[#23314F] rounded px-2 py-0.5"
+                      >
+                        {u}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewProfile((s) => ({ ...s, urls: (s.urls || []).filter((_, idx) => idx !== i) }))
+                          }
+                          className="text-slate-500 hover:text-rose-400 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveProfile}
+                className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/40 hover:bg-violet-500/30 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Lưu profile
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

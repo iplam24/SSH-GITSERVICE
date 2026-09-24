@@ -345,6 +345,10 @@ export const App: React.FC = () => {
       // Mở Terminal — AI Copilot sẽ được người dùng bật từ nút trong TerminalPage
       setCurrentRoute('terminal');
       showToast('Mở tab AI Copilot trong Terminal để nhờ AI gợi ý lệnh', 'info');
+    } else if (cmd.actionType === 'open_snippets') {
+      // Mở Terminal — Snippet Manager bật từ nút trong TerminalPage
+      setCurrentRoute('terminal');
+      showToast('Mở panel Snippet trong Terminal để chèn nhanh lệnh', 'info');
     } else if (cmd.actionType === 'setup_wizard' || cmd.id === 'setup:wizard') {
       setIsSetupOpen(true);
     }

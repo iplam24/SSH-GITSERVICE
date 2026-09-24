@@ -91,6 +91,8 @@ public class ApiServer
         builder.Services.AddSingleton<ICommandService, CommandService>();
         builder.Services.AddSingleton<IDevOpsService, DevOpsService>();
         builder.Services.AddSingleton<IDockerService, DockerService>();
+        builder.Services.AddSingleton<ISnippetService, SnippetService>();
+        builder.Services.AddSingleton<IDevEnvService, DevEnvService>();
         builder.Services.AddSingleton<IPluginManager, DevDock.Plugins.PluginManager>();
         builder.Services.AddHttpClient();
         builder.Services.ConfigureHttpJsonOptions(options =>
@@ -1311,6 +1313,32 @@ public class ApiServer
 
         api.MapPost("/docker/compose/down", async (DockerComposeRequest req, IDockerService svc) =>
             Results.Ok(await svc.ComposeDownAsync(req.WorkingDirectory)));
+
+        // ------------------ SNIPPETS (N4) ------------------
+        api.MapGet("/snippets", async (ISnippetService svc) =>
+            Results.Ok(await svc.GetAllAsync()));
+
+        api.MapPost("/snippets", async (SnippetItem snippet, ISnippetService svc) =>
+            Results.Ok(await svc.SaveAsync(snippet)));
+
+        api.MapDelete("/snippets/{id}", async (string id, ISnippetService svc) =>
+            Results.Ok(new { success = await svc.DeleteAsync(id) }));
+
+        api.MapPost("/snippets/{id}/use", async (string id, ISnippetService svc) =>
+            Results.Ok(await svc.IncrementUseAsync(id)));
+
+        // ------------------ DEV ENVIRONMENT PROFILES (N5) ------------------
+        api.MapGet("/dev-env/profiles", async (string? projectId, IDevEnvService svc) =>
+            Results.Ok(await svc.GetProfilesAsync(projectId)));
+
+        api.MapPost("/dev-env/profiles", async (DevEnvProfile profile, IDevEnvService svc) =>
+            Results.Ok(await svc.SaveProfileAsync(profile)));
+
+        api.MapDelete("/dev-env/profiles/{id}", async (string id, IDevEnvService svc) =>
+            Results.Ok(new { success = await svc.DeleteProfileAsync(id) }));
+
+        api.MapPost("/dev-env/profiles/{id}/launch", async (string id, IDevEnvService svc) =>
+            Results.Ok(await svc.LaunchAsync(id)));
 
         // ------------------ HTTP CLIENT DEVELOPER TOOL PROXY ------------------
         api.MapPost("/tools/http-request", async (HttpRequestProxyModel req, IHttpClientFactory clientFactory) =>
